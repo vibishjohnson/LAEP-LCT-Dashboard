@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAEP LCT Dashboard - Actuals vs Forecast</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 45px 30px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.8em;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 30px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            background: #fafafa;
+            overflow-x: auto;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            white-space: nowrap;
+            min-width: 150px;
+        }
+
+        .tab-button:hover {
+            color: #667eea;
+            background: white;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 40px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 35px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            word-break: break-word;
+        }
+
+        .metric-unit {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .chart-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            min-height: 450px;
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #222;
+            margin-bottom: 25px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .data-table thead {
+            background: #f0f0f0;
+            font-weight: 600;
+        }
+
+        .data-table th, .data-table td {
+            padding: 16px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f8f8f8;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .tech-color-heat { --color: #FF6B6B; }
+        .tech-color-solar { --color: #FFD93D; }
+        .tech-color-battery { --color: #6BCB77; }
+        .tech-color-ev { --color: #4D96FF; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ LAEP LCT Dashboard</h1>
+            <p class="subtitle">Low Carbon Technology Deployment Across England</p>
+            <p style="font-size: 0.9em; margin-top: 10px; opacity: 0.8;">April 2025 - March 2026 | England Only | MPAN Deduplicated</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="geography">Geography:</label>
+                <select id="geography" style="width: 150px;" onchange="updateGeographyFilter()">
+                    <option value="dno" selected>By DNO</option>
+                    <option value="lsoa">By LSOA</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="startMonth">Start Month:</label>
+                <input type="month" id="startMonth" value="2025-04">
+            </div>
+            <div class="control-group">
+                <label for="endMonth">End Month:</label>
+                <input type="month" id="endMonth" value="2026-03">
+            </div>
+            <div class="control-group" id="dnoGroup">
+                <label for="dnos">DNO:</label>
+                <select id="dnos" multiple style="width: 150px;">
+                    <option value="EPN" selected>EPN</option>
+                    <option value="LPN" selected>LPN</option>
+                    <option value="SPN" selected>SPN</option>
+                </select>
+            </div>
+            <div class="control-group" id="lsoaGroup" style="display:none;">
+                <label for="lsoaSearch">LSOA:</label>
+                <input type="text" id="lsoaSearch" placeholder="E01000001" list="lsoaList" style="width: 150px;">
+                <datalist id="lsoaList"></datalist>
+            </div>
+            <div class="control-group">
+                <label for="evType">EV Type:</label>
+                <select id="evType" style="width: 150px;">
+                    <option value="combined" selected>BEV + PHEV</option>
+                    <option value="BEV">BEV Only</option>
+                    <option value="PHEV">PHEV Only</option>
+                </select>
+            </div>
+            <button onclick="applyFilters()" style="padding: 8px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Apply Filters</button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('summary')">📊 Summary</button>
+            <button class="tab-button" onclick="switchTab('heat')">🔥 Heat Pumps</button>
+            <button class="tab-button" onclick="switchTab('solar')">☀️ Solar PV</button>
+            <button class="tab-button" onclick="switchTab('ev')">🚗 EVs</button>
+            <button class="tab-button" onclick="switchTab('charger')">⚡ EV Chargers</button>
+        </div>
+
+        <div id="summary" class="tab-content active"></div>
+        <div id="heat" class="tab-content"></div>
+        <div id="solar" class="tab-content"></div>
+        <div id="ev" class="tab-content"></div>
+        <div id="charger" class="tab-content"></div>
+
+        <footer>
+            Dashboard automatically loads fresh data from GitHub. Last updated: <span id="lastUpdated">loading...</span>
+        </footer>
+    </div>
+
+    <script>
+        let actualsDataDno = [];
+        let actualsDataLsoa = [];
+        let evActualsDataDno = [];
+        let evActualsDataLsoa = [];
+        let forecastData = {};
+
+        const actualsUrlDno = './project/output_processed/dashboard_data_dno.csv';
+        const actualsUrlLsoa = './project/output_processed/dashboard_data_lsoa.csv';
+        const evActualsUrlDno = './project/output_processed/ev_actuals_dno.csv';
+        const evActualsUrlLsoa = './project/output_processed/ev_actuals_lsoa.csv';
+        const cacheBreaker = '?v=' + new Date().getTime();
+        const forecastUrls = {
+            heat: './project/output_processed/dfes_heat_pump_forecast_holistic_transition.csv' + cacheBreaker,
+            solar: './project/output_processed/dfes_solar_pv_forecast_high.csv' + cacheBreaker,
+            ev: './project/output_processed/dfes_ev_forecast_reduced_demand.csv' + cacheBreaker
+        };
+
+        async function loadData() {
+            try {
+                // Load DNO-level actuals
+                const responseDno = await fetch(actualsUrlDno);
+                const csvDno = await responseDno.text();
+                actualsDataDno = parseCSV(csvDno);
+
+                // Load LSOA-level actuals
+                try {
+                    const responseLsoa = await fetch(actualsUrlLsoa);
+                    const csvLsoa = await responseLsoa.text();
+                    actualsDataLsoa = parseCSV(csvLsoa);
+                } catch (e) {
+                    console.warn('Could not load LSOA actuals data');
+                }
+
+                // Load EV actuals (DNO level)
+                try {
+                    const evResponseDno = await fetch(evActualsUrlDno);
+                    const evCsvDno = await evResponseDno.text();
+                    evActualsDataDno = parseCSV(evCsvDno);
+                } catch (e) {
+                    console.warn('Could not load EV actuals DNO data');
+                }
+
+                // Load EV actuals (LSOA level)
+                try {
+                    const evResponseLsoa = await fetch(evActualsUrlLsoa);
+                    const evCsvLsoa = await evResponseLsoa.text();
+                    evActualsDataLsoa = parseCSV(evCsvLsoa);
+                } catch (e) {
+                    console.warn('Could not load EV actuals LSOA data');
+                }
+
+                // Load forecasts
+                for (const [key, url] of Object.entries(forecastUrls)) {
+                    try {
+                        const fResponse = await fetch(url);
+                        const fCsv = await fResponse.text();
+                        forecastData[key] = parseCSV(fCsv);
+                    } catch (e) {
+                        console.warn(`Could not load forecast for ${key}`);
+                    }
+                }
+
+                document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+
+                // Populate LSOA datalist
+                const uniqueLsoas = [...new Set(actualsDataLsoa.map(r => r.LSOA21CD))].sort();
+                const lsoaList = document.getElementById('lsoaList');
+                lsoaList.innerHTML = uniqueLsoas.map(lsoa => `<option value="${lsoa}">`).join('');
+
+                renderAllTabs();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('summary').innerHTML = `<div class="error">Error loading data. Make sure CSV files are in the correct location.</div>`;
+            }
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            const headers = lines[0].split(',');
+            return lines.slice(1).map(line => {
+                const values = line.split(',');
+                const obj = {};
+                headers.forEach((h, i) => obj[h.trim()] = values[i]?.trim());
+                return obj;
+            });
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function updateGeographyFilter() {
+            const geography = document.getElementById('geography').value;
+            const dnoGroup = document.getElementById('dnoGroup');
+            const lsoaGroup = document.getElementById('lsoaGroup');
+
+            if (geography === 'dno') {
+                dnoGroup.style.display = 'flex';
+                lsoaGroup.style.display = 'none';
+            } else {
+                dnoGroup.style.display = 'none';
+                lsoaGroup.style.display = 'flex';
+            }
+            applyFilters();
+        }
+
+        function applyFilters() {
+            renderAllTabs();
+        }
+
+        function getFilteredActuals(techType = null) {
+            const startMonth = document.getElementById('startMonth').value;
+            const endMonth = document.getElementById('endMonth').value;
+            const geography = document.getElementById('geography').value;
+            const evType = document.getElementById('evType') ? document.getElementById('evType').value : 'combined';
+
+            let filtered = [];
+            let evActualsToUse = [];
+
+            if (geography === 'dno') {
+                const selectedDNOs = Array.from(document.getElementById('dnos').selectedOptions).map(o => o.value);
+                filtered = actualsDataDno.filter(row => {
+                    const matchTech = !techType || row.tech_type === techType;
+                    const matchDate = row.period >= startMonth && row.period <= endMonth;
+                    const matchDNO = selectedDNOs.includes(row.DNO);
+                    return matchTech && matchDate && matchDNO;
+                });
+                evActualsToUse = evActualsDataDno;
+            } else {
+                const lsoaSearch = document.getElementById('lsoaSearch').value.toUpperCase();
+                filtered = actualsDataLsoa.filter(row => {
+                    const matchTech = !techType || row.tech_type === techType;
+                    const matchDate = row.period >= startMonth && row.period <= endMonth;
+                    const matchLsoa = !lsoaSearch || row.LSOA21CD.includes(lsoaSearch);
+                    return matchTech && matchDate && matchLsoa;
+                });
+                evActualsToUse = evActualsDataLsoa;
+            }
+
+            // For EV, also include EV actuals data with type filtering
+            if (techType === 'EV' && evActualsToUse.length > 0) {
+                if (geography === 'dno') {
+                    const selectedDNOs = Array.from(document.getElementById('dnos').selectedOptions).map(o => o.value);
+                    const evFiltered = evActualsToUse.filter(row => {
+                        const matchDate = row.period >= startMonth && row.period <= endMonth;
+                        const matchDNO = selectedDNOs.includes(row.DNO);
+                        const matchEvType = evType === 'combined' || row.EV_Type === evType;
+                        return matchDate && matchDNO && matchEvType;
+                    });
+                    filtered = [...filtered, ...evFiltered];
+                } else {
+                    const lsoaSearch = document.getElementById('lsoaSearch').value.toUpperCase();
+                    const evFiltered = evActualsToUse.filter(row => {
+                        const matchDate = row.period >= startMonth && row.period <= endMonth;
+                        const matchLsoa = !lsoaSearch || row.LSOA21CD.includes(lsoaSearch);
+                        const matchEvType = evType === 'combined' || row.EV_Type === evType;
+                        return matchDate && matchLsoa && matchEvType;
+                    });
+                    filtered = [...filtered, ...evFiltered];
+                }
+            }
+
+            return filtered;
+        }
+
+        function getFilteredForecast(forecastKey) {
+            if (!forecastData[forecastKey]) return [];
+            const startMonth = document.getElementById('startMonth').value;
+            const endMonth = document.getElementById('endMonth').value;
+            const geography = document.getElementById('geography').value;
+
+            if (geography === 'dno') {
+                const selectedDNOs = Array.from(document.getElementById('dnos').selectedOptions).map(o => o.value);
+                return forecastData[forecastKey].filter(row => {
+                    const matchDate = row.period >= startMonth && row.period <= endMonth;
+                    const matchDNO = !row.DNO || selectedDNOs.includes(row.DNO);
+                    return matchDate && matchDNO;
+                });
+            } else {
+                const lsoaSearch = document.getElementById('lsoaSearch').value.toUpperCase();
+                return forecastData[forecastKey].filter(row => {
+                    const matchDate = row.period >= startMonth && row.period <= endMonth;
+                    const matchLsoa = !lsoaSearch || (row.LSOA21CD && row.LSOA21CD.includes(lsoaSearch));
+                    return matchDate && matchLsoa;
+                });
+            }
+        }
+
+        function createComparisonChart(actuals, forecast, chartId, dataType = 'count') {
+            const byMonth = {};
+
+            // Aggregate actuals
+            actuals.forEach(r => {
+                if (!byMonth[r.period]) byMonth[r.period] = { actual: 0, forecast: 0 };
+                byMonth[r.period].actual += parseInt(r.install_count || r.forecast_value || 0);
+            });
+
+            // Aggregate forecast
+            forecast.forEach(r => {
+                if (!byMonth[r.period]) byMonth[r.period] = { actual: 0, forecast: 0 };
+                byMonth[r.period].forecast += parseInt(r.forecast_value || 0);
+            });
+
+            const months = Object.keys(byMonth).sort();
+            const actualValues = months.map(m => byMonth[m].actual);
+            const forecastValues = months.map(m => byMonth[m].forecast);
+
+            const traceActual = {
+                x: months,
+                y: actualValues,
+                name: 'Actuals',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#FF6B6B', width: 3 },
+                marker: { size: 6 }
+            };
+
+            const traceForecast = {
+                x: months,
+                y: forecastValues,
+                name: 'Forecast',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#4D96FF', width: 2, dash: 'dash' }
+            };
+
+            let yaxisTitle = 'Count/Capacity';
+            if (dataType === 'Solar PV') yaxisTitle = 'Capacity (kW)';
+            else if (dataType === 'EV') yaxisTitle = 'Count (Vehicles)';
+            else if (dataType === 'Heat Pump' || dataType === 'Battery Storage' || dataType === 'EV Charger') yaxisTitle = 'Count (Units)';
+
+            const layout = {
+                title: 'Actuals vs Forecast',
+                xaxis: { title: 'Month' },
+                yaxis: { title: yaxisTitle },
+                hovermode: 'x unified',
+                margin: { l: 60, r: 60, t: 40, b: 60 }
+            };
+
+            Plotly.newPlot(chartId, [traceActual, traceForecast], layout, { responsive: true });
+        }
+
+        function renderTab(tabName, techType, forecastKey) {
+            const actuals = getFilteredActuals(techType);
+            const forecast = forecastKey ? getFilteredForecast(forecastKey) : [];
+            const container = document.getElementById(tabName);
+
+            const totalActuals = actuals.reduce((sum, r) => sum + parseInt(r.install_count || 0), 0);
+            const totalForecast = forecast.reduce((sum, r) => sum + parseInt(r.forecast_value || 0), 0);
+
+            const chartId = `chart-comparison-${tabName}`;
+
+            container.innerHTML = `
+                <div class="metrics">
+                    <div class="metric-card">
+                        <div class="metric-label">Actual (Actuals)</div>
+                        <div class="metric-value">${totalActuals.toLocaleString()}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Forecast (DFES)</div>
+                        <div class="metric-value">${totalForecast.toLocaleString()}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Variance</div>
+                        <div class="metric-value">${(totalActuals - totalForecast).toLocaleString()}</div>
+                        <div class="metric-unit">${totalForecast > 0 ? ((totalActuals / totalForecast) * 100).toFixed(0) : 0}% of forecast</div>
+                    </div>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <div class="chart-title">📊 Actuals vs Forecast</div>
+                        <div id="${chartId}"></div>
+                    </div>
+                </div>
+            `;
+
+            setTimeout(() => {
+                createComparisonChart(actuals, forecast, chartId, techType);
+            }, 100);
+        }
+
+        function renderAllTabs() {
+            renderTab('summary', null, null);
+            renderTab('heat', 'Heat Pump', 'heat');
+            renderTab('solar', 'Solar PV', 'solar');
+            renderTab('ev', 'EV', 'ev');
+            renderTab('charger', 'EV Charger', null);
+        }
+
+        // Load on startup
+        loadData();
+    </script>
+</body>
+</html>

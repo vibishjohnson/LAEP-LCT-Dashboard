@@ -1,0 +1,25 @@
+EV Processing QA Summary
+========================================
+Latest period (0135): 2025-12-31
+Totals before redistribution: {'BEV': 6912262.0, 'PHEV': 3368525.0}
+Totals after redistribution:  {'BEV': 6912262, 'PHEV': 3368525}
+Share of LSOAs capped >100: {'BEV': 0.010647968583341414, 'PHEV': 0.003843599959137808}
+
+VEH0142 latest period: 2025-12-31
+
+LSOA body rows: 993616
+LAEP body rows: 496
+UKPN body rows: 112
+Missing geo rows: 1327324 (incl. missing LAEP)
+
+Top LAEPs by total EV in 2025-12-31:
+  nan: 464703
+  North South London subregional LAEP: 137614
+  West London LAEP: 119838
+  Essex LAEP: 85255
+  Norfolk - Suffolk LAEP: 65320
+  Outer East LAEP: 64695
+  Hounslow LAEP: 13109
+  Westminster LAEP: 12630
+  Enfield LAEP: 12553
+  Isle of Dogs LAEP: 8989
