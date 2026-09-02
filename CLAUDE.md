@@ -1,5 +1,23 @@
 # LAEP LCT Dashboard — Development Guide
 
+## ⚠️ CRITICAL SCOPE RULE
+
+**This dashboard is for UK Power Networks only.**
+
+Valid licence areas: **EPN, SPN, LPN only.**
+
+Some source datasets (MCS, LCT Register, external sources) cover the entire UK. **Before comparing totals, validating deduplication, or diagnosing differences between pipelines, first confirm that EVERY dataset has been filtered to UKPN scope.**
+
+For each data source you inspect or modify, explicitly report:
+1. Total raw records
+2. Records within UKPN scope (EPN, SPN, LPN)
+3. Records excluded as non-UKPN
+4. The field/lookup used to determine UKPN scope
+
+**Do not compare UK-wide records against UKPN-only records.** All downstream comparisons and deduplication analysis must use UKPN-only records.
+
+---
+
 ## Architecture
 
 Two separate LCT processing pipelines exist:
