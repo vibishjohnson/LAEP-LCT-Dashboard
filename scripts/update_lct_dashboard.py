@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 LCT Dashboard Automation Script
 Automates PowerBI LCT dashboard from 6 different data sources
 """
+
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 import pandas as pd
 import numpy as np
@@ -171,15 +176,16 @@ class LCTDashboardProcessor:
     def process_mcs_data(self):
         """Process MCS monthly data files"""
         print("\n📊 Processing MCS data...")
-        
+
         mcs_dir = os.path.join(self.data_dir, 'mcs')
         if not os.path.exists(mcs_dir):
             print("❌ MCS directory not found")
             return
-        
-        mcs_files = glob.glob(os.path.join(mcs_dir, '*.xlsx'))
+
+        # Load both xlsx and csv files
+        mcs_files = glob.glob(os.path.join(mcs_dir, '*.xlsx')) + glob.glob(os.path.join(mcs_dir, '*.csv'))
         print(f"Found {len(mcs_files)} MCS files")
-        
+
         for file_path in mcs_files:
             try:
                 # Extract month from filename
@@ -193,11 +199,14 @@ class LCTDashboardProcessor:
                 else:
                     print(f"⚠️ Could not extract month from {filename}")
                     continue
-                
+
                 print(f"Processing {filename} -> {month}")
-                
-                # Read Excel file
-                df = pd.read_excel(file_path)
+
+                # Read file (xlsx or csv)
+                if file_path.endswith('.csv'):
+                    df = pd.read_csv(file_path)
+                else:
+                    df = pd.read_excel(file_path)
                 
                 # Process each row
                 for _, row in df.iterrows():
@@ -221,7 +230,11 @@ class LCTDashboardProcessor:
                     
                     # Assign license area
                     license_area = self.assign_license_area(mpan, postcode)
-                    
+
+                    # Filter to UKPN areas only (EPN, SPN, LPN)
+                    if license_area not in ['EPN', 'SPN', 'LPN']:
+                        continue
+
                     # Extract month from Commissioning Date
                     commissioning_date = row.get('Commissioning Date')
                     if pd.notna(commissioning_date):
@@ -405,44 +418,46 @@ class LCTDashboardProcessor:
     def process_lct_register(self):
         """Process LCT Register data"""
         print("\n📊 Processing LCT Register data...")
-        
-        file_path = os.path.join(self.data_dir, 'lct_register.xlsx')
+
+        file_path = os.path.join(self.data_dir, 'lct_register_latest.csv')
         if not os.path.exists(file_path):
             print("❌ LCT Register file not found")
             return
-        
+
         try:
-            df = pd.read_excel(file_path)
-            
+            df = pd.read_csv(file_path)
+            # Normalize column names to match expected format
+            df.columns = [col.lower() for col in df.columns]
+
             for _, row in df.iterrows():
                 # Filter for connected status only
-                status = row.get('Status')
+                status = row.get('status')
                 if pd.notna(status) and str(status).strip().lower() != 'connected':
                     continue
-                
-                # Extract technology from 'Type' column
-                tech_name = self.standardize_technology_name(row.get('Type'))
+
+                # Extract technology from 'type' column
+                tech_name = self.standardize_technology_name(row.get('type'))
                 if not tech_name:
                     continue
-                
-                # Extract capacity from 'Generation_Rating' column
-                capacity_kw = self.parse_capacity_to_kw(row.get('Generation_Rating'))
-                
+
+                # Extract capacity from 'generation_rating' column
+                capacity_kw = self.parse_capacity_to_kw(row.get('generation_rating'))
+
                 # Extract MPAN and postcode
-                mpan = row.get('MPAN')
-                postcode = row.get('MPAN_Postcode')
-                
+                mpan = row.get('mpan')
+                postcode = row.get('mpan_postcode')
+
                 # Assign license area
                 license_area = self.assign_license_area(mpan, postcode)
-                
-                # Extract month from 'Installation_Date' or 'Commissioning_Date'
-                month = self.extract_month_from_date(row.get('Installation_Date'))
+
+                # Extract month from 'installation_date' or 'commissioning_date'
+                month = self.extract_month_from_date(row.get('installation_date'))
                 if not month:
-                    month = self.extract_month_from_date(row.get('Commissioning_Date'))
-                
+                    month = self.extract_month_from_date(row.get('commissioning_date'))
+
                 if not month:
                     continue
-                
+
                 # Apply LCT Register rules
                 if tech_name in ['Solar PV', 'Battery Storage']:
                     g99_status = 'G99' if capacity_kw > 3.68 else 'G98'
@@ -457,22 +472,22 @@ class LCTDashboardProcessor:
                     g99_status = 'N/A'  # Not applicable for non-generation
                 else:
                     g99_status = 'G99'
-                
+
                 # Skip EV chargers >7kW as they're public
                 if tech_name == 'EV Charging' and capacity_kw > 7:
                     continue
-                
-                # Extract domestic/commercial classification from Property_Type
-                property_type = str(row.get('Property_Type', '')).lower()
+
+                # Extract domestic/commercial classification from property_type
+                property_type = str(row.get('property_type', '')).lower()
                 if 'domestic' in property_type:
                     domestic_commercial = 'Domestic'
                 elif 'non domestic' in property_type or 'commercial' in property_type:
                     domestic_commercial = 'Commercial'
                 else:
                     domestic_commercial = 'Unknown'
-                
+
                 connection_level = 'Secondary'  # LCT Register connections are typically Secondary
-                
+
                 self.aggregated_data.append({
                     'month': month,
                     'technology': tech_name,
@@ -484,10 +499,10 @@ class LCTDashboardProcessor:
                     'mpan': mpan,
                     'domestic_commercial': domestic_commercial
                 })
-                
+
         except Exception as e:
             print(f"❌ Error processing LCT Register: {e}")
-        
+
         print(f"✅ Processed LCT Register data: {len([d for d in self.aggregated_data if d['source'] == 'LCT_Register'])} records")
     
     def process_zapmap_data(self):
@@ -803,34 +818,43 @@ class LCTDashboardProcessor:
     
     def _deduplicate_standard(self, records, priority_order):
         """Standard deduplication logic for non-EV records"""
-        # Group by MPAN and keep highest priority
-        mpan_groups = {}
+        # Group by MPAN+Month+Technology and keep highest priority
+        composite_groups = {}
         for record in records:
             mpan = record['mpan']
+            month = record['month']
+            tech = record['technology']
             source = record['source']
-            
-            if mpan and mpan in mpan_groups:
-                # Check priority
-                if priority_order[source] < priority_order[mpan_groups[mpan]['source']]:
-                    mpan_groups[mpan] = record
-            elif mpan:
-                mpan_groups[mpan] = record
-        
+
+            # Create composite key: MPAN + Month + Technology
+            if mpan:
+                key = (mpan, month, tech)
+                if key in composite_groups:
+                    # Check priority
+                    if priority_order[source] < priority_order[composite_groups[key]['source']]:
+                        composite_groups[key] = record
+                else:
+                    composite_groups[key] = record
+
         # Create deduplicated list
         deduplicated_data = []
-        processed_mpans = set()
-        
+        processed_keys = set()
+
         for record in records:
             mpan = record['mpan']
-            
-            if mpan and mpan in mpan_groups:
-                if mpan not in processed_mpans:
-                    deduplicated_data.append(mpan_groups[mpan])
-                    processed_mpans.add(mpan)
+            month = record['month']
+            tech = record['technology']
+
+            if mpan:
+                key = (mpan, month, tech)
+                if key in composite_groups:
+                    if key not in processed_keys:
+                        deduplicated_data.append(composite_groups[key])
+                        processed_keys.add(key)
             else:
                 # Records without MPAN are kept
                 deduplicated_data.append(record)
-        
+
         return deduplicated_data
     
     def create_deduplication_report(self):
@@ -1101,7 +1125,7 @@ class LCTDashboardProcessor:
 
 def main():
     """Main function"""
-    processor = LCTDashboardProcessor()
+    processor = LCTDashboardProcessor(data_dir="lct")
     processor.run() 
 
 if __name__ == "__main__":
