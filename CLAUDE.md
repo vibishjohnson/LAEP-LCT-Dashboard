@@ -107,3 +107,16 @@ Do not assume these are part of the production workflow:
 3. **Do not edit generated CSVs directly:** Fix the processing code instead.
 4. **No unrelated cleanup:** Do not refactor or migrate architecture as a side effect of a bug fix or feature.
 5. **Test the modified pipeline:** Re-run the affected scripts and confirm the app still loads and displays correctly.
+
+## Change Control Policy
+
+When a session receives an instruction containing words like "analyze," "inspect," "review," "validate," "compare," "investigate," or an explicit statement like "do not modify files," treat the entire task as **READ-ONLY**.
+
+- Do not edit repository files unless the current user instruction explicitly authorizes implementation or modification.
+- Do not stage changes (git add) unless explicitly asked to commit.
+- Do not create commits unless explicitly asked to commit.
+- Do not push to remote unless explicitly asked to push.
+- Do not modify CLAUDE.md itself merely because a new rule or fact is discovered during analysis; propose the update first and wait for approval.
+- If a change appears important or urgent during a read-only task, report it as a recommendation and wait for explicit authorization before proceeding.
+
+A useful discovery during analysis is not implicit permission to modify the repository. Always confirm scope with the user first.
