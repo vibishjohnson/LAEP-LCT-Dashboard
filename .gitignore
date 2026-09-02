@@ -1,0 +1,8 @@
+# Runtime logs
+lct_run.log
+
+# Generated pipeline outputs
+output/
+
+# LCT Register source extract - downloaded/refreshed manually from Databricks
+lct/lct_register_latest.csv
