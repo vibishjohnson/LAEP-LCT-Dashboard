@@ -22,21 +22,44 @@ The dashboard ingests five data sources to cover LCT installation activity:
 #### MCS (Microgeneration Certification Scheme) — Primary Source
 - **Geography:** UKPN data supplied by UKPN to MCS
 - **Coverage:** Monthly files from April 2024 onwards
-- **Technologies:** Heat Pumps, Solar PV, Battery Storage, EV Chargers
+- **Technologies:** Heat Pumps (primary; up to 70 kW), Solar PV, Battery Storage, Distributed Generation (primary; up to 50 kW)
 - **Scope:** National coverage; UKPN eligibility determined via postcode spatial mapping
-- **Role:** Primary/authoritative source for certified installations
+- **Role:** Primary/authoritative source for certified installations within stated capacity bands
 - **Capacity fields:** `Total Installed Capacity` (parsed to kW)
 - **Identifier:** MPAN (where available)
+- **Note:** EV chargers in MCS data are not part of the authoritative EV charger methodology (see EV charger section); they may be included in MCS output but are not the intended domestic/private EV source
 
 #### LCT Register — Secondary Source (MPAN-Deduplicated)
 - **Geography:** Postcode-based; records are UKPN-native (100% EPN/SPN/LPN)
 - **Coverage:** Consolidated register of all historic LCT Register notifications
-- **Technologies:** Heat Pumps, Solar PV, Battery Storage, EV notifications
+- **Technologies:** Heat Pumps (secondary), Solar PV, Battery Storage, EV chargers (domestic/private)
 - **Scope:** UKPN-only; every record has native DNO field (EPN/SPN/LPN)
 - **Role:** Secondary source; cross-source deduplication against MCS via MPAN
-- **Capacity fields:** `Generation_Rating` and `Import_Rating` (in kW)
+- **Capacity fields:** `Generation_Rating` and `Import_Rating` (in kW); technology-specific field selection required (TO CONFIRM per technology)
 - **Identifier:** MPAN (authoritative for network ownership)
 - **Deduplication rule (Pipeline 1):** Records with MPAN appearing in MCS are excluded
+- **Note for DG:** LCT Register contains Solar PV and Battery Storage records, but these are not part of the authoritative DG capacity-band methodology unless explicitly confirmed as supplementary
+
+#### Smart Enquiries / Fuse Upgrade Requests — Supplementary Source
+- **Geography:** Postcode-based; records are UKPN-native (Connect Direct applicants)
+- **Coverage:** Recent G99 Connect Direct connection applications
+- **Technologies:** Heat Pumps (supplementary for Heat Pumps), Solar PV, Battery Storage, EV chargers (supplementary domestic/private)
+- **Scope:** UKPN-only
+- **Role:** Supplementary source for Heat Pumps, EV chargers, and Distributed Generation
+- **Identifier:** MPAN
+- **Deduplication:** MPAN-based deduplication against MCS and LCT Register per technology
+- **DATA STATUS:** AUTHORITATIVE METHODOLOGY SOURCE — DATA CURRENTLY UNAVAILABLE
+- **Note:** This source is not out of scope; it is a required part of the original methodology but data files are not currently provided to the pipeline. Stage 2B canonical schema should be designed to accommodate these records when data becomes available.
+
+#### Device-Report (Connect Direct) — Connect Direct Application Records
+- **Geography:** Postcode-based; records are 100% UKPN-native (Connect Direct applicants)
+- **Coverage:** Recent G99 Connect Direct connection applications
+- **Technologies:** Heat Pumps, Solar PV, Battery Storage, EV Chargers
+- **Scope:** UKPN-only; appears to be most recent/current-year applications
+- **Role:** TO CONFIRM — relationship to Smart Enquiries / Fuse Upgrade Requests is unresolved; not included in original methodology without independent evidence
+- **Identifier:** MPAN (where assigned at connection)
+- **Deduplication:** TO CONFIRM — how to treat overlap with LCT Register and Smart Enquiries sources
+- **Note:** Data exists and is loaded into Pipeline 2; methodology role requires clarification
 
 #### ECR Large (>1 MW generation / Import capacity) — UKPN-Native Source
 - **Geography:** Postcode-based; records are 100% UKPN-native
@@ -48,12 +71,12 @@ The dashboard ingests five data sources to cover LCT installation activity:
 - **Identifier:** Postcode + native licence area
 - **Deduplication:** TO CONFIRM — Stage 2 integration and dedup rules not yet finalized
 
-#### ECR Small (<1 MW generation / Import capacity) — UKPN-Native Source
+#### ECR Small (50 kW–1 MW generation / Import capacity) — UKPN-Native Source
 - **Geography:** Postcode-based; records are 100% UKPN-native
-- **Coverage:** All UKPN G99/G98 Equipment Connection Register entries <1 MW
-- **Technologies:** Solar PV, Battery Storage, EV Chargers (small installations)
+- **Coverage:** All UKPN G99/G98 Equipment Connection Register entries between 50 kW and 1 MW
+- **Technologies:** Solar PV, Battery Storage, Distributed Generation (50 kW–1 MW band)
 - **Scope:** UKPN-only; every record has native Licence Area field (note: trailing space in column name)
-- **Role:** Supplementary; captures small/residential installations
+- **Role:** Supplementary for Distributed Generation; captures installations in the 50 kW–1 MW band
 - **Capacity fields:** TO CONFIRM — exact field selection and conversions, missing data handling
 - **Deduplication:** TO CONFIRM — Stage 2 integration and dedup rules not yet finalized
 
@@ -66,15 +89,6 @@ The dashboard ingests five data sources to cover LCT installation activity:
 - **Capacity fields:** TO CONFIRM — field interpretation and handling
 - **Identifier:** Postcode (no MPAN; spatial allocation only)
 - **Deduplication:** TO CONFIRM — relationship to LCT Register and public-vs-domestic dedup strategy
-
-#### Device-Report (Connect Direct) — UKPN Native Source
-- **Geography:** Postcode-based; records are 100% UKPN-native (Connect Direct applicants)
-- **Coverage:** Recent G99 Connect Direct connection applications
-- **Technologies:** Heat Pumps, Solar PV, Battery Storage, EV Chargers
-- **Scope:** UKPN-only; appears to be most recent/current-year applications
-- **Role:** TO CONFIRM — role in dashboard pipeline; not currently used in Pipeline 1
-- **Identifier:** MPAN (where assigned at connection)
-- **Deduplication:** TO CONFIRM — how to treat overlap with LCT Register
 
 ### B. UKPN Eligibility and Geography
 
@@ -180,9 +194,10 @@ Capacity is recorded in kilowatts (kW) for LCT installations. Conversions and pa
 #### LCT Register
 - **Fields:** `Generation_Rating` (generation/export capacity, in kW), `Import_Rating` (import/consumption capacity, in kW)
 - **Parsing:**
-  - Take maximum of `Generation_Rating` and `Import_Rating` where available
+  - Both fields are retained; technology-specific field selection occurs at Stage 2 (TO CONFIRM)
   - Values expected to be pre-converted to kW
   - Missing values: Treated as 0.0 kW
+- **CURRENT IMPLEMENTATION NOTE (Pipeline 1):** Takes maximum of the two fields, but this may not be appropriate for all technologies and should be verified against Stage 2 analysis
 
 #### ECR Large
 - **Field:** TO CONFIRM — exact column name, unit, and handling of multiple capacity fields
@@ -191,35 +206,68 @@ Capacity is recorded in kilowatts (kW) for LCT installations. Conversions and pa
 - **Field:** TO CONFIRM — technology-specific capacity fields and conversions
 
 #### ZapMap
-- **Field:** TO CONFIRM — field representing charger capacity (if any)
+- **Field:** `connector_power_kw` (actual connector power in kW; category assumptions applied as fallback where power is missing)
+- **CONFIRMED NEW DECISION:** Use actual connector_power_kw values where available; apply power_band_name category assumptions only when connector_power_kw is missing or invalid
 
 #### Device-Report
 - **Field:** TO CONFIRM — field selection strategy for multiple capacity-related columns
 
 **Important:** Capacity is recorded per installation (one row = one device). Aggregation to installation count is via record count; aggregation to total capacity is via sum of capacity_kw.
 
-### E. Source Precedence and Deduplication
+### E. Source Chains and Deduplication
+
+Source treatment is **technology-specific**, not universal. Different technologies may use different source precedence and deduplication rules.
+
+#### Technology-Specific Source Chains (TO CONFIRM per technology)
+
+**Heat Pumps:**
+- Primary: MCS (certified installations ≤70 kW)
+- Secondary: LCT Register
+- Supplementary: Smart Enquiries / Fuse Upgrade Requests (if available)
+- Supplementary: Device-Report (Connect Direct applications)
+- **Deduplication:** MPAN-based against prior sources per technology
+
+**Solar PV / Distributed Generation:**
+- By capacity band:
+  - 0–50 kW: MCS (primary), LCT Register (secondary)
+  - 50 kW–1 MW: ECR Small (primary for this band), LCT Register (if not in ECR), MCS (if capacity ≤50 kW)
+  - >1 MW: ECR Large (primary for this band)
+- **Deduplication:** MPAN-based within capacity band; cross-band treatment TO CONFIRM
+
+**Battery Storage:**
+- By capacity band:
+  - 0–50 kW: MCS (primary), LCT Register (secondary)
+  - 50 kW–1 MW: ECR Small (primary for this band)
+  - >1 MW: ECR Large (primary for this band)
+- **Deduplication:** MPAN-based per capacity band; cross-band treatment TO CONFIRM
+
+**EV Chargers:**
+- Domestic/workplace/private installations:
+  - Primary: LCT Register
+  - Secondary: Smart Enquiries / Fuse Upgrade Requests (if available)
+  - Supplementary: Device-Report (Connect Direct applications)
+- Public installations:
+  - ZapMap (primary/supplementary for public charging)
+  - Supplementary: ECR Small (if registered as connection point)
+- **Important:** MCS EV charger records are not part of the authoritative EV methodology; they are separate from LCT Register domestic chargers
+- **Deduplication:** MPAN-based for domestic; spatial for public (distinct populations)
 
 #### Pipeline 1 (Currently Active)
-**Deduplication logic:** MPAN-only cross-source
+**Actual implementation:** MPAN-only cross-source deduplication between MCS and LCT Register only
 
 ```
-1. Process MCS first
+1. Process MCS first (all technologies)
    - Collect all unique MPAN values
    
-2. Process LCT Register second
+2. Process LCT Register second (all technologies)
    - Exclude any record where MPAN appears in MCS MPAN set
-   - Rationale: MCS is primary; LCT Register is secondary
    
 3. Combine MCS + deduplicated LCT Register
    - Aggregate by (period, tech_type, DNO)
-   - Output: dashboard_data_dno.csv (DNO-level), dashboard_data_lsoa.csv (LSOA-level)
+   - Output: dashboard_data_dno.csv, dashboard_data_lsoa.csv
 ```
 
-**Limitation:** MPAN-only deduplication does not account for:
-- LCT Register records without MPAN
-- Records added in LCT Register after MCS processing completed
-- Different months or technologies for same MPAN
+**Limitation:** Pipeline 1 does not implement technology-specific source chains; uses universal MCS→LCT Register precedence
 
 **Current coverage (Pipeline 1):**
 - MCS (all months, all technologies)
@@ -227,28 +275,9 @@ Capacity is recorded in kilowatts (kW) for LCT installations. Conversions and pa
 - ECR Large, ECR Small, ZapMap: NOT INCLUDED in Pipeline 1
 
 #### Pipeline 2 (New / Not Yet Production)
-**Proposed deduplication logic:** MPAN + Month + Technology (within source)
+**Proposed deduplication logic:** Technology-specific chains with MPAN+Month+Technology keys (within source)
 
-**Status:** TO CONFIRM — Stage 2 deduplication has not been finalized.
-
-**Planned logic (from source-provenance analysis):**
-```
-Broad sources (MCS, ZapMap):
-  - Spatial method gates UKPN eligibility
-  - Cross-source deduplication rule: TO CONFIRM
-  
-UKPN-native sources (LCT, ECR):
-  - Native field gates UKPN eligibility (100% pass)
-  - Within-source deduplication possible via (postcode, native DNO, capacity)
-  - Cross-source deduplication: TO CONFIRM
-  
-Possible precedence:
-  - MCS first (national, certified)
-  - LCT Register second (authoritative for network)
-  - ECR Large (large installations, <1% expected overlap with LCT)
-  - ECR Small (small installations, check overlap with MCS/LCT)
-  - ZapMap (public charging, distinct from domestic/workplace)
-```
+**Status:** TO CONFIRM — Stage 2B will finalize technology-specific chains and cross-source deduplication rules
 
 **Benchmark totals (after Stage 1 geographic filtering, before Stage 2 dedup):**
 - MCS: 32,318 raw records → 6,774 UKPN-eligible (spatial)
@@ -507,7 +536,7 @@ This ensures consistency: totals can be traced back to underlying LSOA-level det
 | **LCT Tech Classification** | Pattern match on tech field; unrecognized → exclude | Pipeline 1 code | HIGH | VERIFIED METHODOLOGY |
 | **LCT Capacity Unit** | kW (conversions from MW, W) | Pipeline 1 implementation | HIGH | VERIFIED METHODOLOGY |
 | **LCT Capacity Field (MCS)** | `Total Installed Capacity` | Pipeline 1 code, MCS schema | HIGH | VERIFIED METHODOLOGY |
-| **LCT Capacity Field (LCT Register)** | max(Generation_Rating, Import_Rating) | Pipeline 1 code, schema inspection | HIGH | VERIFIED METHODOLOGY |
+| **LCT Capacity Field (LCT Register)** | Technology-specific field selection | Original methodology + Stage 2 analysis | MEDIUM | TO CONFIRM per technology — current Pipeline 1 implementation uses max(Generation_Rating, Import_Rating) |
 | **LCT Postcode→LSOA** | postcode_lsoa21_lookup_spatial.csv | Pipeline 1/2 code | HIGH | VERIFIED METHODOLOGY |
 | **LCT LSOA→DNO** | LSOA to DNO.csv (Majority Licence area) | Pipeline 1/2 code | HIGH | VERIFIED METHODOLOGY |
 | **LCT MCS UKPN Eligibility** | Spatial method (postcode→LSOA→DNO) | Pipeline 1/2 code | HIGH | VERIFIED METHODOLOGY |
