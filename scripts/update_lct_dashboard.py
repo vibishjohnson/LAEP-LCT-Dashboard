@@ -557,15 +557,23 @@ class LCTCanonicalProcessor:
 
                     capacity_raw = row.get(f'Energy Source & Energy Conversion Technology {energy_src_num} - Registered Capacity (MW)')
 
+                    capacity_value = None
+                    capacity_unit = 'kW'
                     capacity_kw = None
                     capacity_status = 'MISSING'
+
                     if pd.notna(capacity_raw):
+                        capacity_raw_str = str(capacity_raw).strip()
                         try:
-                            capacity_val = float(capacity_raw) * 1000
-                            capacity_kw = capacity_val
+                            capacity_mw = float(capacity_raw_str)
+                            capacity_kw = capacity_mw * 1000
+                            capacity_value = capacity_kw
                             capacity_status = 'RESOLVED'
-                        except:
+                        except (ValueError, TypeError):
                             capacity_status = 'INVALID'
+                        capacity_raw = capacity_raw_str
+                    else:
+                        capacity_raw = None
 
                     tech_canonical, is_mapped = self.normalize_technology(tech_raw, 'ECR_Small')
 
@@ -584,8 +592,8 @@ class LCTCanonicalProcessor:
                         technology_detail=f'Energy Source {energy_src_num}, 50-1000 kW band',
                         technology_status='MAPPED' if is_mapped else 'UNMAPPED',
                         capacity_raw=capacity_raw,
-                        capacity_value=capacity_kw,
-                        capacity_unit='kW',
+                        capacity_value=capacity_value,
+                        capacity_unit=capacity_unit,
                         capacity_kw=capacity_kw,
                         capacity_type='REGISTERED_CAPACITY',
                         capacity_status=capacity_status,
