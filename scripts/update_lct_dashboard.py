@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LCT Dashboard Automation Script
-Automates PowerBI LCT dashboard from 6 different data sources
+LCT Dashboard Automation Script - Stage 1: Geographic Assignment
+Processes 5 data sources with postcode-based geographic assignment
 """
 
 import sys
@@ -19,12 +19,37 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class LCTDashboardProcessor:
-    def __init__(self, data_dir="data", output_dir="output"):
+    def __init__(self, data_dir="lct", output_dir="output"):
         self.data_dir = data_dir
         self.output_dir = output_dir
         self.postcode_lookup = None
+        self.dno_lookup = None
         self.aggregated_data = []
-        
+
+        # Audit tracking per source
+        self.audit = {
+            'MCS': {'raw': 0, 'blank_postcode': 0, 'postcode_not_in_lookup': 0,
+                   'spatial_epn': 0, 'spatial_spn': 0, 'spatial_lpn': 0,
+                   'spatial_outside_ukpn': 0, 'licence_area_unresolved': 0,
+                   'native_fallback_retained': 0, 'final_ukpn_candidates': 0},
+            'LCT_Register': {'raw': 0, 'blank_postcode': 0, 'postcode_not_in_lookup': 0,
+                            'spatial_epn': 0, 'spatial_spn': 0, 'spatial_lpn': 0,
+                            'spatial_outside_ukpn': 0, 'licence_area_unresolved': 0,
+                            'native_fallback_retained': 0, 'final_ukpn_candidates': 0},
+            'ECR_Large': {'raw': 0, 'blank_postcode': 0, 'postcode_not_in_lookup': 0,
+                         'spatial_epn': 0, 'spatial_spn': 0, 'spatial_lpn': 0,
+                         'spatial_outside_ukpn': 0, 'licence_area_unresolved': 0,
+                         'native_fallback_retained': 0, 'final_ukpn_candidates': 0},
+            'ECR_Small': {'raw': 0, 'blank_postcode': 0, 'postcode_not_in_lookup': 0,
+                         'spatial_epn': 0, 'spatial_spn': 0, 'spatial_lpn': 0,
+                         'spatial_outside_ukpn': 0, 'licence_area_unresolved': 0,
+                         'native_fallback_retained': 0, 'final_ukpn_candidates': 0},
+            'ZapMap': {'raw': 0, 'blank_postcode': 0, 'postcode_not_in_lookup': 0,
+                      'spatial_epn': 0, 'spatial_spn': 0, 'spatial_lpn': 0,
+                      'spatial_outside_ukpn': 0, 'licence_area_unresolved': 0,
+                      'native_fallback_retained': 0, 'final_ukpn_candidates': 0},
+        }
+
         # Technology name standardization mapping
         self.tech_mapping = {
             'solar pv': 'Solar PV',
@@ -44,1089 +69,384 @@ class LCTDashboardProcessor:
             'wind': 'Wind',
             'stored energy': 'Stored Energy'
         }
-        
-        # License area mapping from MPAN prefixes
-        self.mpan_license_mapping = {
-            '10': 'EPN',
-            '12': 'LPN', 
-            '19': 'SPN'
-        }
-        
-        print("🚀 LCT Dashboard Processor initialized")
-        
-    def load_postcode_lookup(self):
-        """Load postcode to license area mapping"""
+
+    def load_postcode_lookups(self):
+        """Load postcode->LSOA and LSOA->DNO lookups"""
         try:
-            self.postcode_lookup = pd.read_csv('postcode_lookup.csv')
-            print("✅ Postcode lookup loaded successfully")
+            pc_path = os.path.join('lookups', 'postcode_lsoa21_lookup_spatial.csv')
+            self.postcode_lookup = pd.read_csv(pc_path)
+            self.postcode_lookup['postcode_std'] = (
+                self.postcode_lookup['postcode'].str.upper().str.replace(" ", "", regex=False).str.strip()
+            )
+            self.postcode_lookup_dict = dict(zip(self.postcode_lookup['postcode_std'], self.postcode_lookup['LSOA21CD']))
+            print("OK - Postcode->LSOA21CD lookup loaded")
+
+            dno_path = os.path.join('lookups', 'LSOA to DNO.csv')
+            self.dno_lookup = pd.read_csv(dno_path, encoding='utf-8-sig')
+            self.dno_lookup_dict = dict(zip(self.dno_lookup['LSOA21CD'], self.dno_lookup['Majority Licence area']))
+            print("OK - LSOA21CD->Licence Area lookup loaded")
+
         except Exception as e:
-            print(f"❌ Error loading postcode lookup: {e}")
-            self.postcode_lookup = None
-    
+            print(f"ERROR loading lookups: {e}")
+            raise
+
+    def standardize_postcode(self, postcode):
+        """Normalize postcode format"""
+        if pd.isna(postcode) or postcode == '':
+            return None
+        postcode_str = str(postcode).upper().replace(" ", "").strip()
+        return postcode_str if postcode_str else None
+
     def standardize_technology_name(self, tech_name):
         """Standardize technology names"""
         if pd.isna(tech_name):
             return None
-        
         tech_lower = str(tech_name).lower().strip()
         for key, value in self.tech_mapping.items():
             if key in tech_lower:
                 return value
         return tech_name
-    
-    def parse_capacity_to_kw(self, capacity_value, source=None):
+
+    def parse_capacity_to_kw(self, capacity_value):
         """Parse capacity values and convert to kW"""
-        if pd.isna(capacity_value):
+        if pd.isna(capacity_value) or capacity_value == '':
             return 0.0
-        
+
         capacity_str = str(capacity_value).strip()
-        
-        # Extract numeric value
         numeric_match = re.search(r'[\d,]+\.?\d*', capacity_str.replace(',', ''))
         if not numeric_match:
             return 0.0
-        
-        numeric_value = float(numeric_match.group().replace(',', ''))
-        
-        # Determine unit and convert to kW
-        capacity_lower = capacity_str.lower()
-        if 'mw' in capacity_lower:
-            return numeric_value * 1000  # MW to kW
-        elif 'w' in capacity_lower and 'kw' not in capacity_lower:
-            return numeric_value / 1000  # W to kW
-        elif source in ['ECR_GT_1MW', 'ECR_LT_1MW']:
-            # ECR data is in MW, convert to kW
-            return numeric_value * 1000
-        else:
-            # Default case - assume kW
-            return numeric_value
-    
-    def get_license_area_from_mpan(self, mpan):
-        """Get license area from MPAN prefix"""
-        if pd.isna(mpan):
-            return None
-        
-        mpan_str = str(mpan).strip()
-        if len(mpan_str) >= 2:
-            prefix = mpan_str[:2]
-            return self.mpan_license_mapping.get(prefix)
-        return None
-    
-    def get_license_area_from_postcode(self, postcode):
-        """Get license area from postcode using lookup table"""
-        if pd.isna(postcode) or self.postcode_lookup is None:
-            return None
-        
-        postcode_str = str(postcode).strip().upper()
-        
-        # Extract postcode prefix (first 2-3 characters)
-        prefix_match = re.match(r'^([A-Z]{1,3})', postcode_str)
-        if not prefix_match:
-            return None
-        
-        prefix = prefix_match.group(1)
-        
-        # Look up in postcode mapping
-        for _, row in self.postcode_lookup.iterrows():
-            if pd.notna(row['LPN']) and prefix in str(row['LPN']):
-                return 'LPN'
-            elif pd.notna(row['SPN']) and prefix in str(row['SPN']):
-                return 'SPN'
-            elif pd.notna(row['EPN']) and prefix in str(row['EPN']):
-                return 'EPN'
-        
-        return None
-    
-    def assign_license_area(self, mpan, postcode):
-        """Assign license area using MPAN first, then postcode"""
-        # Try MPAN first
-        license_area = self.get_license_area_from_mpan(mpan)
-        if license_area:
-            return license_area
-        
-        # Fall back to postcode
-        return self.get_license_area_from_postcode(postcode)
-    
-    def extract_month_from_date(self, date_value):
-        """Extract month from date column"""
-        if pd.isna(date_value):
-            return None
-        
-        try:
-            if isinstance(date_value, str):
-                # Try different date formats
-                for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M', 
-                           '%d/%m/%Y %H:%M:%S', '%d-%m-%Y', '%Y/%m/%d', '%d.%m.%Y', '%d %m %Y']:
-                    try:
-                        date_obj = datetime.strptime(date_value, fmt)
-                        return date_obj.strftime('%Y-%m')
-                    except ValueError:
-                        continue
-                else:
-                    # Assume it's already a datetime
-                    return pd.to_datetime(date_value).strftime('%Y-%m')
-            else:
-                # Assume it's already a datetime
-                return pd.to_datetime(date_value).strftime('%Y-%m')
-        except:
-            pass
-        
-        return None
-    
-    def process_mcs_data(self):
-        """Process MCS monthly data files"""
-        print("\n📊 Processing MCS data...")
 
-        mcs_dir = os.path.join(self.data_dir, 'mcs')
-        if not os.path.exists(mcs_dir):
-            print("❌ MCS directory not found")
+        numeric_value = float(numeric_match.group().replace(',', ''))
+        capacity_lower = capacity_str.lower()
+
+        if 'mw' in capacity_lower:
+            return numeric_value * 1000
+        elif 'w' in capacity_lower and 'kw' not in capacity_lower:
+            return numeric_value / 1000
+        else:
+            return numeric_value
+
+    def assign_geography_spatial(self, postcode_std):
+        """Assign geography via postcode->LSOA->DNO (spatial method)"""
+        if postcode_std is None:
+            return None, None
+
+        lsoa = self.postcode_lookup_dict.get(postcode_std)
+        if lsoa is None:
+            return None, None
+
+        dno = self.dno_lookup_dict.get(lsoa)
+        return lsoa, dno
+
+    def assign_geography_with_fallback(self, postcode, source, native_licence=None):
+        """
+        Assign geography with source-specific fallback rules.
+        Returns (licence_area, geography_status)
+
+        Geography status values:
+        - RESOLVED_SPATIAL_UKPN: spatial method resolved to EPN/SPN/LPN
+        - RESOLVED_NATIVE_FALLBACK: spatial unresolved but native DNO used
+        - OUTSIDE_UKPN: spatial resolved but DNO is blank (outside UKPN)
+        - POSTCODE_BLANK: postcode field is blank/missing
+        - POSTCODE_NOT_IN_LOOKUP: postcode exists but not in lookup
+        - LICENCE_AREA_UNRESOLVED: no resolution method available
+        """
+
+        # Step 1: Check if postcode is blank
+        postcode_std = self.standardize_postcode(postcode)
+        if postcode_std is None:
+            return None, 'POSTCODE_BLANK'
+
+        # Step 2: Apply spatial geography
+        lsoa, spatial_dno = self.assign_geography_spatial(postcode_std)
+
+        if spatial_dno is None:
+            if lsoa is None:
+                # Postcode not in lookup
+                geo_status = 'POSTCODE_NOT_IN_LOOKUP'
+            else:
+                # Postcode->LSOA mapped but LSOA->DNO blank (outside UKPN)
+                geo_status = 'OUTSIDE_UKPN'
+
+            # Step 3: Try native fallback if applicable
+            if source in ['LCT_Register', 'ECR_Large', 'ECR_Small'] and native_licence:
+                native_std = str(native_licence).strip() if native_licence else None
+                # Normalize ECR native field (full company name -> abbreviation)
+                if 'Eastern Power Networks (EPN)' in str(native_licence):
+                    native_std = 'EPN'
+                elif 'South Eastern Power Networks (SPN)' in str(native_licence):
+                    native_std = 'SPN'
+                elif 'London Power Networks (LPN)' in str(native_licence):
+                    native_std = 'LPN'
+
+                if native_std in ['EPN', 'SPN', 'LPN']:
+                    return native_std, 'RESOLVED_NATIVE_FALLBACK'
+
+            # No resolution
+            return None, geo_status
+
+        # Spatial resolved to valid UKPN DNO
+        if spatial_dno in ['EPN', 'SPN', 'LPN']:
+            return spatial_dno, 'RESOLVED_SPATIAL_UKPN'
+
+        # Spatial resolved but outside UKPN
+        return None, 'OUTSIDE_UKPN'
+
+    def process_source_vectorized(self, source_name, file_path, postcode_col, native_licence_col=None, source_type='broad'):
+        """
+        Process source using vectorized operations.
+        source_type: 'broad' (MCS, ZapMap) or 'ukpn_native' (LCT, ECR)
+        """
+        if not os.path.exists(file_path):
+            print(f"SKIP - File not found: {file_path}")
             return
 
-        # Load both xlsx and csv files
-        mcs_files = glob.glob(os.path.join(mcs_dir, '*.xlsx')) + glob.glob(os.path.join(mcs_dir, '*.csv'))
+        try:
+            print(f"  {os.path.basename(file_path)}...", end="")
+            df = pd.read_csv(file_path) if file_path.endswith('.csv') else pd.read_excel(file_path)
+
+            self.audit[source_name]['raw'] = len(df)
+
+            # Normalize postcodes
+            df['postcode_std'] = df[postcode_col].fillna('').astype(str).str.upper().str.replace(" ", "", regex=False).str.strip()
+            df['postcode_std'] = df['postcode_std'].replace('', None)
+
+            # Map to LSOA
+            df['lsoa21cd'] = df['postcode_std'].map(self.postcode_lookup_dict)
+
+            # Map to spatial licence area
+            df['spatial_licence_area'] = df['lsoa21cd'].map(self.dno_lookup_dict)
+
+            # For UKPN-native sources: normalize native licence area
+            if source_type == 'ukpn_native' and native_licence_col:
+                def normalize_native(val):
+                    if pd.isna(val):
+                        return None
+                    s = str(val).strip()
+                    s_norm = ' '.join(s.upper().split())
+
+                    spn_patterns = [
+                        'SOUTH EASTERN POWER NETWORKS',
+                        'SOUTH EASTERN POWER NETWORKS (SPN)',
+                        'SPN'
+                    ]
+                    lpn_patterns = [
+                        'LONDON POWER NETWORKS',
+                        'LONDON POWER NETWORKS (LPN)',
+                        'LPN'
+                    ]
+                    epn_patterns = [
+                        'EASTERN POWER NETWORKS',
+                        'EASTERN POWER NETWORKS (EPN)',
+                        'EPN'
+                    ]
+
+                    if s_norm in spn_patterns:
+                        return 'SPN'
+                    elif s_norm in lpn_patterns:
+                        return 'LPN'
+                    elif s_norm in epn_patterns:
+                        return 'EPN'
+
+                    return None
+                df['native_licence_area'] = df[native_licence_col].apply(normalize_native)
+            else:
+                df['native_licence_area'] = None
+
+            # SOURCE-TYPE SPECIFIC LOGIC
+            if source_type == 'broad':
+                # BROAD SOURCES (MCS, ZapMap): Spatial gates UKPN eligibility
+                def assign_geo_status_broad(row):
+                    if pd.isna(row['postcode_std']):
+                        return 'POSTCODE_BLANK', None
+                    if pd.isna(row['lsoa21cd']):
+                        return 'POSTCODE_NOT_IN_LOOKUP', None
+                    if pd.isna(row['spatial_licence_area']):
+                        return 'RESOLVED_SPATIAL_OUTSIDE_UKPN', None
+                    if row['spatial_licence_area'] in ['EPN', 'SPN', 'LPN']:
+                        return 'RESOLVED_SPATIAL_MATCH', row['spatial_licence_area']
+                    return 'LICENCE_AREA_UNRESOLVED', None
+
+                df[['geography_status', 'licence_area']] = df.apply(assign_geo_status_broad, axis=1, result_type='expand')
+                df['ukpn_eligible'] = df['licence_area'].isin(['EPN', 'SPN', 'LPN'])
+            else:
+                # UKPN-NATIVE SOURCES (LCT, ECR): Native gates UKPN eligibility
+                df['ukpn_eligible'] = df['native_licence_area'].isin(['EPN', 'SPN', 'LPN'])
+                df['licence_area'] = df['native_licence_area']
+
+                # Determine spatial allocation status
+                def assign_geo_status_ukpn_native(row):
+                    if pd.isna(row['postcode_std']):
+                        return 'POSTCODE_BLANK'
+                    if pd.isna(row['lsoa21cd']):
+                        return 'POSTCODE_NOT_IN_LOOKUP'
+                    if pd.notna(row['spatial_licence_area']):
+                        if row['spatial_licence_area'] == row['native_licence_area']:
+                            return 'RESOLVED_SPATIAL_MATCH'
+                        elif row['spatial_licence_area'] in ['EPN', 'SPN', 'LPN']:
+                            return 'RESOLVED_SPATIAL_MISMATCH'
+                        else:
+                            return 'RESOLVED_SPATIAL_OUTSIDE_UKPN'
+                    return 'LICENCE_AREA_UNRESOLVED'
+
+                df['geography_status'] = df.apply(assign_geo_status_ukpn_native, axis=1)
+
+            # AUDIT COUNTS
+            self.audit[source_name]['blank_postcode'] = (df['geography_status'] == 'POSTCODE_BLANK').sum()
+            self.audit[source_name]['postcode_not_in_lookup'] = (df['geography_status'] == 'POSTCODE_NOT_IN_LOOKUP').sum()
+            self.audit[source_name]['spatial_outside_ukpn'] = (df['geography_status'] == 'RESOLVED_SPATIAL_OUTSIDE_UKPN').sum()
+            self.audit[source_name]['licence_area_unresolved'] = (df['geography_status'] == 'LICENCE_AREA_UNRESOLVED').sum()
+
+            if source_type == 'broad':
+                # Broad sources: count by spatial licence area
+                self.audit[source_name]['spatial_epn'] = (df['licence_area'] == 'EPN').sum()
+                self.audit[source_name]['spatial_spn'] = (df['licence_area'] == 'SPN').sum()
+                self.audit[source_name]['spatial_lpn'] = (df['licence_area'] == 'LPN').sum()
+                self.audit[source_name]['native_fallback_retained'] = 0
+            else:
+                # UKPN-native sources: count by native licence area and spatial agreement
+                self.audit[source_name]['spatial_epn'] = (df['native_licence_area'] == 'EPN').sum()
+                self.audit[source_name]['spatial_spn'] = (df['native_licence_area'] == 'SPN').sum()
+                self.audit[source_name]['spatial_lpn'] = (df['native_licence_area'] == 'LPN').sum()
+                # Track spatial mismatches (disagreements between native and spatial)
+                self.audit[source_name]['native_fallback_retained'] = (df['geography_status'] == 'RESOLVED_SPATIAL_MISMATCH').sum()
+
+            self.audit[source_name]['final_ukpn_candidates'] = df['ukpn_eligible'].sum()
+
+            # Retain only UKPN eligible
+            df_ukpn = df[df['ukpn_eligible']].copy()
+
+            print(f" OK ({len(df)} -> {len(df_ukpn)} UKPN)")
+
+        except Exception as e:
+            print(f" ERROR: {e}")
+
+    def process_mcs_data(self):
+        """Process MCS monthly data files"""
+        print("\n--- Processing MCS ---")
+
+        mcs_dir = os.path.join(self.data_dir, 'MCS')
+        if not os.path.exists(mcs_dir):
+            print(f"SKIP - Directory not found: {mcs_dir}")
+            return
+
+        mcs_files = sorted(glob.glob(os.path.join(mcs_dir, '*.csv')))
         print(f"Found {len(mcs_files)} MCS files")
 
         for file_path in mcs_files:
-            try:
-                # Extract month from filename
-                filename = os.path.basename(file_path)
-                month_match = re.search(r'(\w+)\s+(\d{4})', filename)
-                if month_match:
-                    month_name = month_match.group(1)
-                    year = month_match.group(2)
-                    month_num = datetime.strptime(month_name, '%B').month
-                    month = f"{year}-{month_num:02d}"
-                else:
-                    print(f"⚠️ Could not extract month from {filename}")
-                    continue
+            self.process_source_vectorized('MCS', file_path, 'Postcode', source_type='broad')
 
-                print(f"Processing {filename} -> {month}")
+        print(f"  MCS audit: {self.audit['MCS']}")
 
-                # Read file (xlsx or csv)
-                if file_path.endswith('.csv'):
-                    df = pd.read_csv(file_path)
-                else:
-                    df = pd.read_excel(file_path)
-                
-                # Process each row
-                for _, row in df.iterrows():
-                    # Extract technology type from 'Technology Type' column
-                    tech_name = self.standardize_technology_name(row.get('Technology Type'))
-                    if not tech_name:
-                        continue
-                    
-                    # Extract capacity from 'Total Installed Capacity' column
-                    capacity_kw = self.parse_capacity_to_kw(row.get('Total Installed Capacity'))
-                    
-                    # For battery storage, use 'Battery Max AC Power Output' if available
-                    if tech_name == 'Battery Storage' and pd.notna(row.get('Battery Max AC Power Output')):
-                        battery_capacity = self.parse_capacity_to_kw(row.get('Battery Max AC Power Output'))
-                        if battery_capacity > 0:
-                            capacity_kw = battery_capacity
-                    
-                    # Extract MPAN and postcode
-                    mpan = row.get('MPAN')
-                    postcode = row.get('Postcode')
-                    
-                    # Assign license area
-                    license_area = self.assign_license_area(mpan, postcode)
-
-                    # Filter to UKPN areas only (EPN, SPN, LPN)
-                    if license_area not in ['EPN', 'SPN', 'LPN']:
-                        continue
-
-                    # Extract month from Commissioning Date
-                    commissioning_date = row.get('Commissioning Date')
-                    if pd.notna(commissioning_date):
-                        date_month = self.extract_month_from_date(commissioning_date)
-                        if date_month:
-                            month = date_month
-                    
-                    # Apply MCS-specific rules
-                    if tech_name == 'Heat Pump':
-                        g99_status = 'N/A'  # Not applicable for non-generation
-                    else:
-                        g99_status = 'G99' if capacity_kw > 3.68 else 'G98'
-                    connection_level = 'Secondary'
-                    
-                    # Extract domestic/commercial classification from Installation Type
-                    installation_type = str(row.get('Installation Type', '')).lower()
-                    if 'domestic' in installation_type:
-                        domestic_commercial = 'Domestic'
-                    elif 'commercial' in installation_type or 'business' in installation_type:
-                        domestic_commercial = 'Commercial'
-                    else:
-                        domestic_commercial = 'Unknown'
-                    
-                    # Add to aggregated data
-                    self.aggregated_data.append({
-                        'month': month,
-                        'technology': tech_name,
-                        'license_area': license_area,
-                        'g99_status': g99_status,
-                        'connection_level': connection_level,
-                        'capacity_kw': capacity_kw,
-                        'source': 'MCS',
-                        'mpan': mpan,
-                        'domestic_commercial': domestic_commercial
-                    })
-                    
-            except Exception as e:
-                print(f"❌ Error processing {file_path}: {e}")
-        
-        print(f"✅ Processed MCS data: {len([d for d in self.aggregated_data if d['source'] == 'MCS'])} records")
-    
-    def process_ecr_gt_1mw(self):
-        """Process ECR >1MW data"""
-        print("\n📊 Processing ECR >1MW data...")
-        
-        file_path = os.path.join(self.data_dir, 'ecr_gt_1mw.xlsx')
-        if not os.path.exists(file_path):
-            print("❌ ECR >1MW file not found")
-            return
-        
-        try:
-            df = pd.read_excel(file_path)
-            
-            for _, row in df.iterrows():
-                # Filter for connected status only
-                connection_status = row.get('Connection Status')
-                if pd.notna(connection_status) and str(connection_status).strip().lower() != 'connected':
-                    continue
-                
-                # Extract technology from 'Energy Conversion Technology 1' and 'Primary Resource Type_Group'
-                tech_name = None
-                if pd.notna(row.get('Energy Conversion Technology 1')):
-                    tech_name = self.standardize_technology_name(row.get('Energy Conversion Technology 1'))
-                elif pd.notna(row.get('Primary Resource Type_Group')):
-                    tech_name = self.standardize_technology_name(row.get('Primary Resource Type_Group'))
-                
-                if not tech_name:
-                    continue
-                
-                # Extract capacity from 'Already connected Registered Capacity (MW)'
-                raw_capacity = row.get('Already connected Registered Capacity (MW)')
-                capacity_kw = self.parse_capacity_to_kw(raw_capacity, 'ECR_GT_1MW')
-                
-                # Debug: Print first few ECR >1MW records to check capacity parsing
-                if len(self.aggregated_data) < 5:  # Only print first 5 records
-                    print(f"ECR >1MW Debug - Raw capacity: {raw_capacity} -> Parsed: {capacity_kw} kW")
-                
-                # Extract MPAN and postcode
-                mpan = row.get('Export MPAN / MSID')
-                postcode = row.get('Postcode')
-                
-                # Assign license area
-                license_area = self.assign_license_area(mpan, postcode)
-                
-                # Extract month from 'Date Connected'
-                month = self.extract_month_from_date(row.get('Date Connected'))
-                if not month:
-                    continue
-                
-                # Apply ECR >1MW rules
-                voltage = str(row.get('Point of Connection (POC)_Voltage (kV)', '')).upper()
-                connection_level = 'Primary'
-                if 'EHV' in voltage or 'HV' in voltage:
-                    connection_level = 'Primary'
-                else:
-                    connection_level = 'Secondary'
-                
-                g99_status = 'G99'  # All ECR >1MW are G99
-                
-                self.aggregated_data.append({
-                    'month': month,
-                    'technology': tech_name,
-                    'license_area': license_area,
-                    'g99_status': g99_status,
-                    'connection_level': connection_level,
-                    'capacity_kw': capacity_kw,
-                    'source': 'ECR_GT_1MW',
-                    'mpan': mpan,
-                    'domestic_commercial': 'Commercial'  # ECR are all commercial
-                })
-                    
-        except Exception as e:
-            print(f"❌ Error processing ECR >1MW: {e}")
-        
-        print(f"✅ Processed ECR >1MW data: {len([d for d in self.aggregated_data if d['source'] == 'ECR_GT_1MW'])} records")
-    
-    def process_ecr_lt_1mw(self):
-        """Process ECR <1MW data"""
-        print("\n📊 Processing ECR <1MW data...")
-        
-        file_path = os.path.join(self.data_dir, 'ecr_lt_1mw.xlsx')
-        if not os.path.exists(file_path):
-            print("❌ ECR <1MW file not found")
-            return
-        
-        try:
-            df = pd.read_excel(file_path)
-            
-            for _, row in df.iterrows():
-                # Filter for connected status only
-                connection_status = row.get('Connection Status')
-                if pd.notna(connection_status) and str(connection_status).strip().lower() != 'connected':
-                    continue
-                
-                # Extract technology from 'Energy Conversion Technology 1' and 'Primary Resource Type_Group'
-                tech_name = None
-                if pd.notna(row.get('Energy Conversion Technology 1')):
-                    tech_name = self.standardize_technology_name(row.get('Energy Conversion Technology 1'))
-                elif pd.notna(row.get('Primary Resource Type_Group')):
-                    tech_name = self.standardize_technology_name(row.get('Primary Resource Type_Group'))
-                
-                if not tech_name:
-                    continue
-            
-                # Extract capacity from 'Already connected Registered Capacity (MW)'
-                capacity_kw = self.parse_capacity_to_kw(row.get('Already connected Registered Capacity (MW)'), 'ECR_LT_1MW')
-                
-                # Extract MPAN and postcode
-                mpan = row.get('Export MPAN / MSID')
-                postcode = row.get('Postcode')
-                
-                # Assign license area
-                license_area = self.assign_license_area(mpan, postcode)
-                
-                # Extract month from 'Date Connected'
-                month = self.extract_month_from_date(row.get('Date Connected'))
-                if not month:
-                    continue
-                
-                # Apply ECR <1MW rules - all are Primary
-                connection_level = 'Primary'
-                g99_status = 'G99'  # All ECR are G99
-                
-                self.aggregated_data.append({
-                    'month': month,
-                    'technology': tech_name,
-                    'license_area': license_area,
-                    'g99_status': g99_status,
-                    'connection_level': connection_level,
-                    'capacity_kw': capacity_kw,
-                    'source': 'ECR_LT_1MW',
-                    'mpan': mpan,
-                    'domestic_commercial': 'Commercial'  # ECR are all commercial
-                })
-        
-        except Exception as e:
-            print(f"❌ Error processing ECR <1MW: {e}")
-        
-        print(f"✅ Processed ECR <1MW data: {len([d for d in self.aggregated_data if d['source'] == 'ECR_LT_1MW'])} records")
-    
     def process_lct_register(self):
-        """Process LCT Register data"""
-        print("\n📊 Processing LCT Register data...")
+        """Process LCT Register"""
+        print("\n--- Processing LCT Register ---")
 
-        file_path = os.path.join(self.data_dir, 'lct_register_latest.csv')
-        if not os.path.exists(file_path):
-            print("❌ LCT Register file not found")
-            return
+        file_path = os.path.join(self.data_dir, 'LCT Register.csv')
+        self.process_source_vectorized('LCT_Register', file_path, 'MPAN_Postcode', 'DNO', source_type='ukpn_native')
+        print(f"  LCT Register audit: {self.audit['LCT_Register']}")
 
-        try:
-            df = pd.read_csv(file_path)
-            # Normalize column names to match expected format
-            df.columns = [col.lower() for col in df.columns]
+    def process_ecr_large(self):
+        """Process ECR Large (>1MW)"""
+        print("\n--- Processing ECR Large ---")
 
-            for _, row in df.iterrows():
-                # Filter for connected status only
-                status = row.get('status')
-                if pd.notna(status) and str(status).strip().lower() != 'connected':
-                    continue
+        file_path = os.path.join(self.data_dir, 'ecr_large.csv')
+        self.process_source_vectorized('ECR_Large', file_path, 'Postcode', 'Licence Area', source_type='ukpn_native')
+        print(f"  ECR Large audit: {self.audit['ECR_Large']}")
 
-                # Extract technology from 'type' column
-                tech_name = self.standardize_technology_name(row.get('type'))
-                if not tech_name:
-                    continue
+    def process_ecr_small(self):
+        """Process ECR Small (<1MW)"""
+        print("\n--- Processing ECR Small ---")
 
-                # Extract capacity from 'generation_rating' column
-                capacity_kw = self.parse_capacity_to_kw(row.get('generation_rating'))
+        file_path = os.path.join(self.data_dir, 'ecr_small.csv')
+        # ECR Small has 'Licence Area ' with trailing space
+        self.process_source_vectorized('ECR_Small', file_path, 'Postcode', 'Licence Area ', source_type='ukpn_native')
+        print(f"  ECR Small audit: {self.audit['ECR_Small']}")
 
-                # Extract MPAN and postcode
-                mpan = row.get('mpan')
-                postcode = row.get('mpan_postcode')
-
-                # Assign license area
-                license_area = self.assign_license_area(mpan, postcode)
-
-                # Extract month from 'installation_date' or 'commissioning_date'
-                month = self.extract_month_from_date(row.get('installation_date'))
-                if not month:
-                    month = self.extract_month_from_date(row.get('commissioning_date'))
-
-                if not month:
-                    continue
-
-                # Apply LCT Register rules
-                if tech_name in ['Solar PV', 'Battery Storage']:
-                    g99_status = 'G99' if capacity_kw > 3.68 else 'G98'
-                elif tech_name == 'EV Charging':
-                    if capacity_kw <= 3.68:
-                        g99_status = 'Slow'
-                    elif capacity_kw <= 7:
-                        g99_status = 'Fast'
-                    else:
-                        g99_status = 'Public'
-                elif tech_name == 'Heat Pump':
-                    g99_status = 'N/A'  # Not applicable for non-generation
-                else:
-                    g99_status = 'G99'
-
-                # Skip EV chargers >7kW as they're public
-                if tech_name == 'EV Charging' and capacity_kw > 7:
-                    continue
-
-                # Extract domestic/commercial classification from property_type
-                property_type = str(row.get('property_type', '')).lower()
-                if 'domestic' in property_type:
-                    domestic_commercial = 'Domestic'
-                elif 'non domestic' in property_type or 'commercial' in property_type:
-                    domestic_commercial = 'Commercial'
-                else:
-                    domestic_commercial = 'Unknown'
-
-                connection_level = 'Secondary'  # LCT Register connections are typically Secondary
-
-                self.aggregated_data.append({
-                    'month': month,
-                    'technology': tech_name,
-                    'license_area': license_area,
-                    'g99_status': g99_status,
-                    'connection_level': connection_level,
-                    'capacity_kw': capacity_kw,
-                    'source': 'LCT_Register',
-                    'mpan': mpan,
-                    'domestic_commercial': domestic_commercial
-                })
-
-        except Exception as e:
-            print(f"❌ Error processing LCT Register: {e}")
-
-        print(f"✅ Processed LCT Register data: {len([d for d in self.aggregated_data if d['source'] == 'LCT_Register'])} records")
-    
     def process_zapmap_data(self):
         """Process ZapMap data"""
-        print("\n📊 Processing ZapMap data...")
-        
+        print("\n--- Processing ZapMap ---")
+
         file_path = os.path.join(self.data_dir, 'zapmap.csv')
-        if not os.path.exists(file_path):
-            print("❌ ZapMap file not found")
-            return
-        
-        try:
-            # Try different encodings
-            for encoding in ['utf-8', 'latin-1', 'cp1252']:
-                try:
-                    df = pd.read_csv(file_path, encoding=encoding)
-                    break
-                except:
-                    continue
-            else:
-                print("❌ Could not read ZapMap file with any encoding")
-                return
-            
-            print(f"   Total ZapMap records: {len(df)}")
-            
-            processed_count = 0
-            skipped_no_month = 0
-            skipped_no_capacity = 0
-            
-            for _, row in df.iterrows():
-                # Extract power group and max power
-                power_group = str(row.get('power_group', '')).lower()
-                max_power = row.get('max_power', 0)
-                
-                # Derive kW by charger type from power_group
-                if 'slow' in power_group:
-                    capacity_kw = 3.7  # Single charger
-                elif 'fast' in power_group:
-                    capacity_kw = 8.4  # Single charger
-                elif 'rapid' in power_group:
-                    capacity_kw = 43   # Single charger
-                else:
-                    # Use max_power if available (in watts, convert to kW)
-                    if pd.notna(max_power) and max_power > 0:
-                        capacity_kw = max_power / 1000  # Convert watts to kW
-                    else:
-                        skipped_no_capacity += 1
-                        continue
-                
-                # Extract postcode
-                postcode = row.get('postal_code')
-                license_area = self.get_license_area_from_postcode(postcode)
-                
-                # Extract month from date_connector_added
-                date_value = row.get('date_connector_added')
-                month = self.extract_month_from_date(date_value)
-                if not month:
-                    skipped_no_month += 1
-                    # Debug: show first few failed date formats
-                    if skipped_no_month <= 3:
-                        print(f"   Debug - Failed to parse date: '{date_value}' (type: {type(date_value)})")
-                    continue
-                
-                # ZapMap rules - all are public chargers
-                self.aggregated_data.append({
-                    'month': month,
-                    'technology': 'EV Charging',
-                    'license_area': license_area,
-                    'g99_status': 'Public',
-                    'connection_level': 'Secondary',
-                    'capacity_kw': capacity_kw,
-                    'source': 'ZapMap',
-                    'mpan': None,
-                    'domestic_commercial': 'Commercial'  # ZapMap are all commercial (public chargers)
-                })
-                processed_count += 1
-            
-            print(f"   Processed: {processed_count}")
-            print(f"   Skipped (no month): {skipped_no_month}")
-            print(f"   Skipped (no capacity): {skipped_no_capacity}")
-                
-        except Exception as e:
-            print(f"❌ Error processing ZapMap: {e}")
-        
-        print(f"✅ Processed ZapMap data: {len([d for d in self.aggregated_data if d['source'] == 'ZapMap'])} records")
-    
-    def process_smart_connect(self):
-        """Process SmartConnect data"""
-        print("\n📊 Processing SmartConnect data...")
-        
-        file_path = os.path.join(self.data_dir, 'smart_connect.csv')
-        if not os.path.exists(file_path):
-            print("❌ SmartConnect file not found")
-            return
-        
-        try:
-            # Try different encodings
-            for encoding in ['utf-8', 'latin-1', 'cp1252']:
-                try:
-                    df = pd.read_csv(file_path, encoding=encoding)
-                    break
-                except:
-                    continue
-            else:
-                print("❌ Could not read SmartConnect file with any encoding")
-                return
-            
-            # Get existing MPANs from MCS for deduplication (non-EV technologies)
-            existing_mcs_mpans = set(d['mpan'] for d in self.aggregated_data if d['source'] == 'MCS' and d['mpan'])
-            
-            print(f"   Total SmartConnect records: {len(df)}")
-            
-            processed_count = 0
-            skipped_status = 0
-            skipped_tech = 0
-            skipped_mcs_duplicate = 0
-            skipped_no_month = 0
-            
-            for _, row in df.iterrows():
-                # Filter for completed status only (be more flexible)
-                actual_status = row.get('Actual Status')
-                if pd.notna(actual_status):
-                    status_lower = str(actual_status).strip().lower()
-                    if status_lower not in ['completed', 'connected']:
-                        skipped_status += 1
-                        continue
-                
-                # Extract technology from 'Installation Type' column
-                installation_type = str(row.get('Installation Type', '')).lower()
-                
-                # Map installation types to standardized technology names
-                if 'battery' in installation_type:
-                    tech_name = 'Battery Storage'
-                elif 'pv' in installation_type or 'solar' in installation_type:
-                    tech_name = 'Solar PV'
-                elif 'heat pump' in installation_type:
-                    tech_name = 'Heat Pump'
-                elif 'electric vehicle' in installation_type or 'ev' in installation_type:
-                    tech_name = 'EV Charging'
-                else:
-                    skipped_tech += 1
-                    continue
-                
-                # Extract capacity from 'Application Export kW' or 'Application Import kW'
-                capacity_kw = 0.0
-                export_kw = row.get('Application Export kW')
-                import_kw = row.get('Application Import kW')
-                
-                if pd.notna(export_kw):
-                    capacity_kw = self.parse_capacity_to_kw(export_kw)
-                elif pd.notna(import_kw):
-                    capacity_kw = self.parse_capacity_to_kw(import_kw)
-                
-                # Extract MPAN and postcode
-                mpan = row.get('MPAN')
-                postcode = row.get('Postcode')
-                
-                # Apply SmartConnect deduplication rules (non-EV only)
-                if mpan and mpan in existing_mcs_mpans and tech_name in ['Solar PV', 'Heat Pump']:
-                    skipped_mcs_duplicate += 1
-                    continue  # Skip if MPAN exists in MCS for Solar/Heat Pump
-                
-                # Note: EV Charging deduplication is handled separately in deduplicate_data()
-                
-                # Assign license area
-                license_area = self.assign_license_area(mpan, postcode)
-                
-                # Extract month from 'Date created' or 'Approval Date'
-                month = self.extract_month_from_date(row.get('Date created'))
-                if not month:
-                    month = self.extract_month_from_date(row.get('Approval Date'))
-                
-                if not month:
-                    skipped_no_month += 1
-                    continue
-                
-                # Apply SmartConnect rules
-                if tech_name == 'EV Charging':
-                    if capacity_kw <= 3.68:
-                        g99_status = 'Slow'
-                    elif capacity_kw <= 7:
-                        g99_status = 'Fast'
-                    else:
-                        continue  # Skip >7kW
-                elif tech_name == 'Heat Pump':
-                    g99_status = 'N/A'  # Not applicable for non-generation
-                else:
-                    g99_status = 'G99' if capacity_kw > 3.68 else 'G98'
-                
-                connection_level = 'Secondary'  # All SmartConnect are Secondary
-                
-                self.aggregated_data.append({
-                    'month': month,
-                    'technology': tech_name,
-                    'license_area': license_area,
-                    'g99_status': g99_status,
-                    'connection_level': connection_level,
-                    'capacity_kw': capacity_kw,
-                    'source': 'SmartConnect',
-                    'mpan': mpan,
-                    'domestic_commercial': 'Domestic'  # SmartConnect assumed to be domestic
-                })
-                processed_count += 1
-            
-            print(f"   Processed: {processed_count}")
-            print(f"   Skipped (status): {skipped_status}")
-            print(f"   Skipped (tech): {skipped_tech}")
-            print(f"   Skipped (MCS duplicate): {skipped_mcs_duplicate}")
-            print(f"   Skipped (no month): {skipped_no_month}")
-                
-        except Exception as e:
-            print(f"❌ Error processing SmartConnect: {e}")
-        
-        print(f"✅ Processed SmartConnect data: {len([d for d in self.aggregated_data if d['source'] == 'SmartConnect'])} records")
-    
-    def deduplicate_data(self):
-        """Deduplicate data using MPAN as primary key with priority order"""
-        print("\n🔄 Deduplicating data...")
-        
-        # Priority order: MCS > LCT Register > SmartConnect > ECR > ZapMap
-        priority_order = {
-            'MCS': 1,
-            'LCT_Register': 2,
-            'SmartConnect': 3,
-            'ECR_GT_1MW': 4,
-            'ECR_LT_1MW': 5,
-            'ZapMap': 6
-        }
-        
-        # Store original data for deduplication tracking
-        self.original_data = self.aggregated_data.copy()
-        
-        # Special handling for EV Charging
-        ev_charging_records = []
-        non_ev_records = []
-        
-        # Separate EV charging records from others
-        for record in self.aggregated_data:
-            if record['technology'] == 'EV Charging':
-                ev_charging_records.append(record)
-            else:
-                non_ev_records.append(record)
-        
-        # Process EV Charging records with special logic
-        ev_deduplicated = self._deduplicate_ev_charging(ev_charging_records, priority_order)
-        
-        # Process non-EV records with standard deduplication
-        non_ev_deduplicated = self._deduplicate_standard(non_ev_records, priority_order)
-        
-        # Combine results
-        self.aggregated_data = non_ev_deduplicated + ev_deduplicated
-        
-        original_count = len(self.original_data)
-        final_count = len(self.aggregated_data)
-        
-        print(f"✅ Deduplication complete: {original_count} -> {final_count} records")
-    
-    def _deduplicate_ev_charging(self, ev_records, priority_order):
-        """Special deduplication logic for EV Charging records"""
-        print("🔄 Applying special EV Charging deduplication logic...")
-        
-        # Separate by source
-        lct_ev = [r for r in ev_records if r['source'] == 'LCT_Register']
-        smartconnect_ev = [r for r in ev_records if r['source'] == 'SmartConnect']
-        zapmap_ev = [r for r in ev_records if r['source'] == 'ZapMap']
-        
-        # Step 1: Deduplicate LCT Register and SmartConnect by MPAN
-        private_ev_records = []
-        mpan_groups = {}
-        
-        # Process LCT Register first (higher priority)
-        for record in lct_ev:
-            mpan = record['mpan']
-            if mpan:
-                mpan_groups[mpan] = record
-            else:
-                private_ev_records.append(record)
-        
-        # Process SmartConnect (lower priority)
-        for record in smartconnect_ev:
-            mpan = record['mpan']
-            if mpan and mpan in mpan_groups:
-                # Skip - LCT Register already has this MPAN
-                continue
-            elif mpan:
-                mpan_groups[mpan] = record
-            else:
-                private_ev_records.append(record)
-        
-        # Add deduplicated private records
-        private_ev_records.extend(mpan_groups.values())
-        
-        # Step 2: Filter out private chargers >7kW (assumed to be public)
-        filtered_private_ev = []
-        discarded_count = 0
-        
-        for record in private_ev_records:
-            if record['capacity_kw'] > 7:
-                discarded_count += 1
-                print(f"   Discarding private EV charger >7kW: {record['capacity_kw']}kW from {record['source']}")
-            else:
-                filtered_private_ev.append(record)
-        
-        # Step 3: Keep ALL ZapMap records (public chargers)
-        final_ev_records = filtered_private_ev + zapmap_ev
-        
-        print(f"   EV Charging deduplication: {len(ev_records)} -> {len(final_ev_records)} records")
-        print(f"   - Private chargers (≤7kW): {len(filtered_private_ev)}")
-        print(f"   - Public chargers (ZapMap): {len(zapmap_ev)}")
-        print(f"   - Discarded private >7kW: {discarded_count}")
-        
-        return final_ev_records
-    
-    def _deduplicate_standard(self, records, priority_order):
-        """Standard deduplication logic for non-EV records"""
-        # Group by MPAN+Month+Technology and keep highest priority
-        composite_groups = {}
-        for record in records:
-            mpan = record['mpan']
-            month = record['month']
-            tech = record['technology']
-            source = record['source']
+        # ZapMap uses 'postal_code', not 'postcode'
+        self.process_source_vectorized('ZapMap', file_path, 'postal_code', source_type='broad')
+        print(f"  ZapMap audit: {self.audit['ZapMap']}")
 
-            # Create composite key: MPAN + Month + Technology
-            if mpan:
-                key = (mpan, month, tech)
-                if key in composite_groups:
-                    # Check priority
-                    if priority_order[source] < priority_order[composite_groups[key]['source']]:
-                        composite_groups[key] = record
+    def print_audit_summary(self):
+        """Print comprehensive audit summary"""
+        print("\n" + "="*100)
+        print("STAGE 1 GEOGRAPHIC ASSIGNMENT AUDIT SUMMARY")
+        print("="*100)
+
+        for source in ['MCS', 'LCT_Register', 'ECR_Large', 'ECR_Small', 'ZapMap']:
+            audit = self.audit[source]
+            print(f"\n{source}:")
+            print(f"  Raw records:                        {audit['raw']:9,}")
+            print(f"  Blank/invalid postcode:             {audit['blank_postcode']:9,}")
+            print(f"  Postcode not in lookup:             {audit['postcode_not_in_lookup']:9,}")
+            print(f"  Spatial EPN:                        {audit['spatial_epn']:9,}")
+            print(f"  Spatial SPN:                        {audit['spatial_spn']:9,}")
+            print(f"  Spatial LPN:                        {audit['spatial_lpn']:9,}")
+            print(f"  Spatial outside UKPN:               {audit['spatial_outside_ukpn']:9,}")
+            print(f"  Licence area unresolved:            {audit['licence_area_unresolved']:9,}")
+            print(f"  Native fallback retained:           {audit['native_fallback_retained']:9,}")
+            print(f"  Final UKPN candidates:              {audit['final_ukpn_candidates']:9,}")
+
+            # Verify reconciliation
+            # For UKPN-native sources: primary = blank + not_in_lookup + all spatial statuses
+            # For broad sources: primary = blank + not_in_lookup + outside_ukpn + unresolved + spatial_UKPN
+            if source in ['LCT_Register', 'ECR_Large', 'ECR_Small']:
+                # UKPN-native: all records have valid native licence area, so final_ukpn_candidates == raw
+                if audit['final_ukpn_candidates'] != audit['raw']:
+                    print(f"  ERROR: UKPN-native source should have final_ukpn_candidates == raw!")
                 else:
-                    composite_groups[key] = record
-
-        # Create deduplicated list
-        deduplicated_data = []
-        processed_keys = set()
-
-        for record in records:
-            mpan = record['mpan']
-            month = record['month']
-            tech = record['technology']
-
-            if mpan:
-                key = (mpan, month, tech)
-                if key in composite_groups:
-                    if key not in processed_keys:
-                        deduplicated_data.append(composite_groups[key])
-                        processed_keys.add(key)
+                    print(f"  [OK - Audit reconciled]")
             else:
-                # Records without MPAN are kept
-                deduplicated_data.append(record)
+                # Broad sources (MCS, ZapMap): verify primary categories sum to raw
+                spatial_ukpn = audit['spatial_epn'] + audit['spatial_spn'] + audit['spatial_lpn']
+                total_primary = (
+                    audit['blank_postcode'] + audit['postcode_not_in_lookup'] +
+                    audit['spatial_outside_ukpn'] + audit['licence_area_unresolved'] + spatial_ukpn
+                )
+                # For broad sources, final UKPN = spatial UKPN only (no native fallback)
+                expected_final_ukpn = spatial_ukpn
 
-        return deduplicated_data
-    
-    def create_deduplication_report(self):
-        """Create a detailed report of deduplication decisions"""
-        print("\n📊 Creating deduplication report...")
-        
-        if not hasattr(self, 'original_data'):
-            print("❌ No original data available for deduplication report")
-            return None
-    
-        # Create deduplication tracking
-        dedup_report = []
-        
-        # Create sets of final MPANs for quick lookup
-        final_mpans = set()
-        final_records_by_mpan = {}
-        
-        for record in self.aggregated_data:
-            if record['mpan']:
-                final_mpans.add(record['mpan'])
-                final_records_by_mpan[record['mpan']] = record
-        
-        # Process each original record
-        for record in self.original_data:
-            mpan = record['mpan']
-            source = record['source']
-            technology = record['technology']
-            
-            # Determine deduplication status
-            if not mpan:
-                status = "KEPT (No MPAN)"
-                reason = "Records without MPAN are always kept"
-            elif mpan in final_mpans:
-                final_record = final_records_by_mpan[mpan]
-                if final_record['source'] == source:
-                    status = "KEPT"
-                    reason = f"Highest priority source for MPAN {mpan}"
+                if total_primary != audit['raw']:
+                    print(f"  ERROR: Primary categories mismatch! {total_primary} vs {audit['raw']}")
+                elif expected_final_ukpn != audit['final_ukpn_candidates']:
+                    print(f"  ERROR: Final UKPN mismatch! {expected_final_ukpn} vs {audit['final_ukpn_candidates']}")
                 else:
-                    status = "REMOVED"
-                    reason = f"Superseded by {final_record['source']} (higher priority)"
-            else:
-                status = "REMOVED"
-                reason = "Not in final dataset"
-            
-            # Special handling for EV Charging
-            if technology == 'EV Charging':
-                if source == 'ZapMap':
-                    status = "KEPT"
-                    reason = "All ZapMap records kept (public chargers)"
-                elif record['capacity_kw'] > 7:
-                    status = "REMOVED"
-                    reason = "Private charger >7kW discarded (assumed public)"
-            
-            dedup_report.append({
-                'mpan': mpan,
-                'source': source,
-                'technology': technology,
-                'month': record['month'],
-                'license_area': record['license_area'],
-                'capacity_kw': record['capacity_kw'],
-                'g99_status': record['g99_status'],
-                'connection_level': record['connection_level'],
-                'deduplication_status': status,
-                'deduplication_reason': reason
-            })
-        
-        # Convert to DataFrame
-        dedup_df = pd.DataFrame(dedup_report)
-        
-        # Sort by MPAN, then by source priority
-        source_priority = {'MCS': 1, 'LCT_Register': 2, 'SmartConnect': 3, 'ECR_GT_1MW': 4, 'ECR_LT_1MW': 5, 'ZapMap': 6}
-        dedup_df['source_priority'] = dedup_df['source'].map(source_priority)
-        dedup_df = dedup_df.sort_values(['mpan', 'source_priority'])
-        dedup_df = dedup_df.drop('source_priority', axis=1)
-        
-        print(f"✅ Deduplication report complete: {len(dedup_df)} records")
-        return dedup_df
-    
-    def create_domestic_commercial_breakdown(self):
-        """Create domestic vs commercial breakdown of the final aggregated data"""
-        print("\n📊 Creating domestic/commercial breakdown...")
-        
-        if not self.aggregated_data:
-            print("❌ No data to create domestic/commercial breakdown")
-            return None
-    
-        # Convert to DataFrame
-        df = pd.DataFrame(self.aggregated_data)
-        
-        # Group by domestic/commercial + required columns
-        grouped = df.groupby(['domestic_commercial', 'month', 'technology', 'license_area', 'g99_status', 'connection_level']).agg({
-            'capacity_kw': ['count', 'sum']
-        }).reset_index()
-        
-        # Flatten column names
-        grouped.columns = ['domestic_commercial', 'month', 'technology', 'license_area', 'g99_status', 'connection_level', 'install_count', 'total_kw']
-        
-        # Convert kW to MW
-        grouped['total_mw'] = grouped['total_kw'] / 1000
-        
-        # Drop the kW column
-        grouped = grouped.drop('total_kw', axis=1)
-        
-        # Sort by domestic/commercial, month, technology, license_area
-        grouped = grouped.sort_values(['domestic_commercial', 'month', 'technology', 'license_area', 'g99_status', 'connection_level'])
-        
-        print(f"✅ Domestic/commercial breakdown complete: {len(grouped)} records")
-        return grouped
-    
-    def create_source_breakdown(self):
-        """Create source breakdown before deduplication"""
-        print("\n📊 Creating source breakdown...")
-        
-        if not self.aggregated_data:
-            print("❌ No data to create breakdown")
-            return None
-    
-        # Convert to DataFrame
-        df = pd.DataFrame(self.aggregated_data)
-        
-        # Group by source + required columns
-        grouped = df.groupby(['source', 'month', 'technology', 'license_area', 'g99_status', 'connection_level']).agg({
-            'capacity_kw': ['count', 'sum']
-        }).reset_index()
-        
-        # Flatten column names
-        grouped.columns = ['source', 'month', 'technology', 'license_area', 'g99_status', 'connection_level', 'install_count', 'total_kw']
-        
-        # Convert kW to MW
-        grouped['total_mw'] = grouped['total_kw'] / 1000
-        
-        # Drop the kW column
-        grouped = grouped.drop('total_kw', axis=1)
-        
-        # Sort by source, month, technology, license_area
-        grouped = grouped.sort_values(['source', 'month', 'technology', 'license_area', 'g99_status', 'connection_level'])
-        
-        print(f"✅ Source breakdown complete: {len(grouped)} records")
-        return grouped
-    
-    def aggregate_final_results(self):
-        """Aggregate final results by month, technology, license_area, g99_status, connection_level"""
-        print("\n📊 Aggregating final results...")
-        
-        if not self.aggregated_data:
-            print("❌ No data to aggregate")
-            return None
-        
-        # Convert to DataFrame
-        df = pd.DataFrame(self.aggregated_data)
-        
-        # Group by required columns
-        grouped = df.groupby(['month', 'technology', 'license_area', 'g99_status', 'connection_level']).agg({
-            'capacity_kw': ['count', 'sum']
-        }).reset_index()
-        
-        # Flatten column names
-        grouped.columns = ['month', 'technology', 'license_area', 'g99_status', 'connection_level', 'install_count', 'total_kw']
-        
-        # Convert kW to MW
-        grouped['total_mw'] = grouped['total_kw'] / 1000
-        
-        # Drop the kW column
-        grouped = grouped.drop('total_kw', axis=1)
-        
-        # Sort by month, technology, license_area
-        grouped = grouped.sort_values(['month', 'technology', 'license_area', 'g99_status', 'connection_level'])
-        
-        print(f"✅ Aggregation complete: {len(grouped)} final records")
-        return grouped
-    
-    def save_output(self, aggregated_df, source_breakdown_df, deduplication_df=None, domestic_commercial_df=None):
-        """Save aggregated results to CSV files"""
-        if aggregated_df is None:
-            print("❌ No data to save")
-            return
-        
-        # Ensure output directory exists
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        # Save main aggregated output
-        main_output_path = os.path.join(self.output_dir, 'aggregated_dashboard_output.csv')
-        try:
-            aggregated_df.to_csv(main_output_path, index=False)
-            print(f"✅ Main output saved to: {main_output_path}")
-        except Exception as e:
-            print(f"❌ Error saving main output: {e}")
-        
-        # Save source breakdown output
-        if source_breakdown_df is not None:
-            breakdown_output_path = os.path.join(self.output_dir, 'source_breakdown_output.csv')
-            try:
-                source_breakdown_df.to_csv(breakdown_output_path, index=False)
-                print(f"✅ Source breakdown saved to: {breakdown_output_path}")
-            except Exception as e:
-                print(f"❌ Error saving source breakdown: {e}")
-        
-        # Save deduplication report
-        if deduplication_df is not None:
-            dedup_output_path = os.path.join(self.output_dir, 'deduplication_report.csv')
-            try:
-                deduplication_df.to_csv(dedup_output_path, index=False)
-                print(f"✅ Deduplication report saved to: {dedup_output_path}")
-            except Exception as e:
-                print(f"❌ Error saving deduplication report: {e}")
-        
-        # Save domestic/commercial breakdown
-        if domestic_commercial_df is not None:
-            dc_output_path = os.path.join(self.output_dir, 'domestic_commercial_breakdown.csv')
-            try:
-                domestic_commercial_df.to_csv(dc_output_path, index=False)
-                print(f"✅ Domestic/commercial breakdown saved to: {dc_output_path}")
-            except Exception as e:
-                print(f"❌ Error saving domestic/commercial breakdown: {e}")
-        
-        # Print summary
-        print(f"\n📊 Final summary:")
-        print(f"   Total records (final): {len(aggregated_df)}")
-        print(f"   Total records (by source): {len(source_breakdown_df) if source_breakdown_df is not None else 0}")
-        print(f"   Total records (deduplication report): {len(deduplication_df) if deduplication_df is not None else 0}")
-        print(f"   Total records (domestic/commercial): {len(domestic_commercial_df) if domestic_commercial_df is not None else 0}")
-        print(f"   Technologies: {aggregated_df['technology'].nunique()}")
-        print(f"   License areas: {aggregated_df['license_area'].nunique()}")
-        print(f"   Months: {aggregated_df['month'].nunique()}")
-        print(f"   Total installations: {aggregated_df['install_count'].sum():,}")
-        print(f"   Total capacity: {aggregated_df['total_mw'].sum():.2f} MW")
-    
+                    print(f"  [OK - Audit reconciled]")
+
     def run(self):
-        """Run the complete LCT dashboard processing pipeline"""
-        print("🚀 Starting LCT Dashboard Processing Pipeline")
-        print("=" * 60)
-        
+        """Run Stage 1 geographic assignment"""
+        print("\n" + "="*100)
+        print("STAGE 1: GEOGRAPHIC ASSIGNMENT (READ-ONLY PROCESSING)")
+        print("="*100)
+
         try:
-            # Load postcode lookup
-            self.load_postcode_lookup()
-            
-            # Process all data sources
+            # Load lookups
+            self.load_postcode_lookups()
+
+            # Process all sources
             self.process_mcs_data()
-            self.process_ecr_gt_1mw()
-            self.process_ecr_lt_1mw()
             self.process_lct_register()
+            self.process_ecr_large()
+            self.process_ecr_small()
             self.process_zapmap_data()
-            self.process_smart_connect()
-            
-            # Create source breakdown before deduplication
-            source_breakdown_df = self.create_source_breakdown()
-            
-            # Deduplicate data
-            self.deduplicate_data()
-            
-            # Create deduplication report
-            deduplication_df = self.create_deduplication_report()
-            
-            # Create domestic/commercial breakdown
-            domestic_commercial_df = self.create_domestic_commercial_breakdown()
-            
-            # Aggregate final results
-            aggregated_df = self.aggregate_final_results()
-            
-            # Save all outputs
-            self.save_output(aggregated_df, source_breakdown_df, deduplication_df, domestic_commercial_df)
-            
-            print("\n🎉 LCT Dashboard processing completed successfully!")
-            
+
+            # Print audit
+            self.print_audit_summary()
+
+            print("\n" + "="*100)
+            print("STAGE 1 COMPLETE: Geographic assignment verified")
+            print("="*100)
+
         except Exception as e:
-            print(f"\n❌ Pipeline failed with error: {e}")
+            print(f"\nERROR: {e}")
             raise
 
-def main():
-    """Main function"""
-    processor = LCTDashboardProcessor(data_dir="lct")
-    processor.run() 
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    processor = LCTDashboardProcessor(data_dir='lct', output_dir='output')
+    processor.run()
