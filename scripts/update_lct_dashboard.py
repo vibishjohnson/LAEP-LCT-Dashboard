@@ -872,14 +872,20 @@ class LCTCanonicalProcessor:
                 # ============================================================
                 elif tech_canonical == 'EV Charging':
                     if source == 'LCT_REGISTER':
-                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
-                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION'
                         df.loc[idx, 'methodology_capacity_kw'] = imp_rating if pd.notna(imp_rating) else None
                         df.loc[idx, 'methodology_capacity_source'] = 'LCT_IMPORT_RATING'
-                        df.loc[idx, 'methodology_capacity_band'] = 'EV_DOMESTIC'
+                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION'
+
+                        # Business rule: Import_Rating > 7.6 kW is assumed public EV (represented in ZapMap)
                         if pd.notna(imp_rating) and imp_rating > 7.6:
-                            df.loc[idx, 'methodology_flag'] = 'POTENTIAL_PUBLIC_OVERLAP_TO_CONFIRM'
-                        df.loc[idx, 'methodology_reason'] = 'LCT Register verified production for domestic EV charging'
+                            df.loc[idx, 'methodology_status'] = 'EXCLUDE_PUBLIC_ASSUMED_IN_ZAPMAP'
+                            df.loc[idx, 'methodology_capacity_band'] = 'EV_PUBLIC_ASSUMED'
+                            df.loc[idx, 'methodology_flag'] = 'ASSUMED_PUBLIC_REPRESENTED_IN_ZAPMAP'
+                            df.loc[idx, 'methodology_reason'] = 'EV charger Import_Rating >7.6 kW; methodology assumes public installation represented in ZapMap'
+                        else:
+                            df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                            df.loc[idx, 'methodology_capacity_band'] = 'EV_DOMESTIC'
+                            df.loc[idx, 'methodology_reason'] = 'LCT Register verified production for domestic EV charging (≤7.6 kW)'
 
                     elif source == 'ZAPMAP':
                         df.loc[idx, 'methodology_status'] = 'INCLUDE'
