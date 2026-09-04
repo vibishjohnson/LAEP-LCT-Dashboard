@@ -1049,6 +1049,117 @@ class LCTCanonicalProcessor:
         print("(Before deduplication or source precedence)")
         print("="*100)
 
+    def apply_stage_2d_dedup(self):
+        """Stage 2D Phase 3A: Safe deduplication layer"""
+        import hashlib
+
+        print("\n--- Applying Stage 2D Deduplication ---")
+
+        stage2c_path = os.path.join(self.output_dir, 'stage_2c_methodology_ready.csv')
+
+        try:
+            df = pd.read_csv(stage2c_path, low_memory=False)
+            print(f"  Read {len(df):,} Stage 2C observations")
+
+            df['dedup_status'] = 'PRODUCTION_REPRESENTATIVE'
+            df['dedup_group_id'] = None
+            df['match_reason'] = None
+            df['canonical_observation_id'] = df.index
+
+            dedup_results = {'MCS_HP': 0, 'LCT_HP': 0, 'LCT_EV': 0, 'MCS_Sol': 0, 'HP_Cand': 0}
+
+            # MCS Heat Pump duplicates
+            mcs_hp = df[(df['source'] == 'MCS') & (df['technology_canonical'] == 'Heat Pump')].dropna(subset=['source_reference_id', 'event_date', 'capacity_kw', 'postcode_std'])
+            if len(mcs_hp) > 0:
+                groups = mcs_hp.groupby(['source', 'source_reference_id', 'event_date', 'capacity_kw', 'postcode_std']).apply(lambda g: g.index.tolist() if len(g) > 1 else []).tolist()
+                for group in [g for g in groups if len(g) > 0]:
+                    gid = 'MCS_HP_' + hashlib.md5(str(sorted(group[:3])).encode()).hexdigest()[:8]
+                    rep = min(group)
+                    for idx in group:
+                        df.loc[idx, 'dedup_status'] = 'PRODUCTION_REPRESENTATIVE' if idx == rep else 'DUPLICATE_REMOVED'
+                        df.loc[idx, 'dedup_group_id'] = gid
+                        df.loc[idx, 'match_reason'] = 'source-content duplicate' if idx != rep else 'duplicate representative'
+                        if idx != rep:
+                            dedup_results['MCS_HP'] += 1
+            print(f"    MCS HP removed: {dedup_results['MCS_HP']}")
+
+            # LCT Heat Pump duplicates
+            lct_hp = df[(df['source'] == 'LCT_REGISTER') & (df['technology_canonical'] == 'Heat Pump')].dropna(subset=['source_reference_id', 'event_date', 'methodology_capacity_kw', 'postcode_std'])
+            if len(lct_hp) > 0:
+                groups = lct_hp.groupby(['source', 'source_reference_id', 'event_date', 'methodology_capacity_kw', 'postcode_std']).apply(lambda g: g.index.tolist() if len(g) > 1 else []).tolist()
+                for group in [g for g in groups if len(g) > 0]:
+                    gid = 'LCT_HP_' + hashlib.md5(str(sorted(group[:3])).encode()).hexdigest()[:8]
+                    rep = min(group)
+                    for idx in group:
+                        df.loc[idx, 'dedup_status'] = 'PRODUCTION_REPRESENTATIVE' if idx == rep else 'DUPLICATE_REMOVED'
+                        df.loc[idx, 'dedup_group_id'] = gid
+                        df.loc[idx, 'match_reason'] = 'source-content duplicate' if idx != rep else 'duplicate representative'
+                        if idx != rep:
+                            dedup_results['LCT_HP'] += 1
+            print(f"    LCT HP removed: {dedup_results['LCT_HP']}")
+
+            # LCT Domestic EV duplicates
+            lct_ev = df[(df['source'] == 'LCT_REGISTER') & (df['technology_canonical'] == 'EV Charging') & (df['methodology_status'] == 'INCLUDE')].dropna(subset=['source_reference_id', 'event_date', 'methodology_capacity_kw', 'postcode_std'])
+            if len(lct_ev) > 0:
+                groups = lct_ev.groupby(['source', 'source_reference_id', 'event_date', 'methodology_capacity_kw', 'postcode_std']).apply(lambda g: g.index.tolist() if len(g) > 1 else []).tolist()
+                for group in [g for g in groups if len(g) > 0]:
+                    gid = 'LCT_EV_' + hashlib.md5(str(sorted(group[:3])).encode()).hexdigest()[:8]
+                    rep = min(group)
+                    for idx in group:
+                        df.loc[idx, 'dedup_status'] = 'PRODUCTION_REPRESENTATIVE' if idx == rep else 'DUPLICATE_REMOVED'
+                        df.loc[idx, 'dedup_group_id'] = gid
+                        df.loc[idx, 'match_reason'] = 'source-content duplicate' if idx != rep else 'duplicate representative'
+                        if idx != rep:
+                            dedup_results['LCT_EV'] += 1
+            print(f"    LCT EV removed: {dedup_results['LCT_EV']}")
+
+            # MCS Solar duplicates
+            mcs_sol = df[(df['source'] == 'MCS') & (df['technology_canonical'] == 'Solar PV')].dropna(subset=['source_reference_id', 'event_date', 'capacity_kw', 'postcode_std'])
+            if len(mcs_sol) > 0:
+                groups = mcs_sol.groupby(['source', 'source_reference_id', 'event_date', 'capacity_kw', 'postcode_std']).apply(lambda g: g.index.tolist() if len(g) > 1 else []).tolist()
+                for group in [g for g in groups if len(g) > 0]:
+                    gid = 'MCS_SOL_' + hashlib.md5(str(sorted(group[:3])).encode()).hexdigest()[:8]
+                    rep = min(group)
+                    for idx in group:
+                        df.loc[idx, 'dedup_status'] = 'PRODUCTION_REPRESENTATIVE' if idx == rep else 'DUPLICATE_REMOVED'
+                        df.loc[idx, 'dedup_group_id'] = gid
+                        df.loc[idx, 'match_reason'] = 'source-content duplicate' if idx != rep else 'duplicate representative'
+                        if idx != rep:
+                            dedup_results['MCS_Sol'] += 1
+            print(f"    MCS Solar removed: {dedup_results['MCS_Sol']}")
+
+            # HP candidate flagging
+            mcs_hp_mpans = set(df[(df['source'] == 'MCS') & (df['technology_canonical'] == 'Heat Pump') & (df['source_reference_id'].notna())]['source_reference_id'].unique())
+            lct_hp_mpans = set(df[(df['source'] == 'LCT_REGISTER') & (df['technology_canonical'] == 'Heat Pump') & (df['source_reference_id'].notna())]['source_reference_id'].unique())
+            overlap = mcs_hp_mpans & lct_hp_mpans
+            for idx in df[(df['technology_canonical'] == 'Heat Pump') & (df['methodology_status'] == 'INCLUDE') & (df['source_reference_id'].isin(overlap)) & (df['dedup_status'] != 'DUPLICATE_REMOVED')].index:
+                df.loc[idx, 'dedup_status'] = 'CANDIDATE_FLAGGED'
+                df.loc[idx, 'match_reason'] = 'same MPAN across MCS and LCT; potential same-installation'
+                dedup_results['HP_Cand'] += 1
+            print(f"    HP candidates flagged: {dedup_results['HP_Cand']}")
+
+            # Outputs
+            audit_path = os.path.join(self.output_dir, 'stage_2d_dedup_audit.csv')
+            df.to_csv(audit_path, index=False)
+            print(f"\n  ✓ Audit: {len(df):,} rows")
+
+            df_prod = df[df['dedup_status'] != 'DUPLICATE_REMOVED'].copy()
+            prod_path = os.path.join(self.output_dir, 'stage_2d_production.csv')
+            df_prod.to_csv(prod_path, index=False)
+            print(f"  ✓ Production: {len(df_prod):,} rows")
+
+            total_removed = sum(dedup_results[k] for k in ['MCS_HP', 'LCT_HP', 'LCT_EV', 'MCS_Sol'])
+            print(f"\n  Total removed: {total_removed:,} (expected: 11,177) {'✓' if total_removed == 11177 else '✗ MISMATCH'}")
+
+            if total_removed != 11177:
+                raise ValueError(f"Removal count {total_removed} != expected 11,177")
+
+            print(f"\n✓ Stage 2D complete")
+
+        except Exception as e:
+            print(f"✗ Stage 2D ERROR: {e}")
+            raise
+
     def run(self):
         """Run Stage 1 + Stage 2B processing"""
         print("\n" + "="*100)
@@ -1067,6 +1178,7 @@ class LCTCanonicalProcessor:
 
             self.write_canonical_output()
             self.apply_stage_2c_methodology()
+            self.apply_stage_2d_dedup()
             self.print_canonical_audit()
 
             print("\n✓ Pipeline complete")
