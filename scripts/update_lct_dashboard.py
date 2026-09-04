@@ -958,10 +958,10 @@ class LCTCanonicalProcessor:
                         df.loc[idx, 'methodology_reason'] = 'ECR Large verified primary for large-scale DG (≥1 MW)'
 
                     elif source == 'LCT_REGISTER':
-                        df.loc[idx, 'methodology_status'] = 'PRESERVE_ROLE_TO_CONFIRM'
-                        df.loc[idx, 'methodology_source_role'] = 'ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'SECONDARY_PRODUCTION_SOURCE'
                         df.loc[idx, 'methodology_capacity_band'] = 'DG_SMALL'
-                        df.loc[idx, 'methodology_reason'] = 'LCT Register Solar PV; DG methodology role TO_CONFIRM'
+                        df.loc[idx, 'methodology_reason'] = 'LCT Register approved as secondary Solar DG source; MCS precedence applies at shared MPAN'
 
                     elif source == 'DEVICE_REPORT':
                         df.loc[idx, 'methodology_status'] = 'PRESERVE_ROLE_TO_CONFIRM'
@@ -1128,6 +1128,19 @@ class LCTCanonicalProcessor:
                             dedup_results['MCS_Sol'] += 1
             print(f"    MCS Solar removed: {dedup_results['MCS_Sol']}")
 
+            # MCS→LCT Solar cross-source precedence (approved methodology rule)
+            print(f"\n  D. Solar MCS→LCT cross-source precedence:")
+            mcs_solar_mpans = set(df[(df['source'] == 'MCS') & (df['technology_canonical'] == 'Solar PV') & (df['source_reference_id'].notna())]['source_reference_id'].unique())
+            lct_solar_to_suppress = df[(df['source'] == 'LCT_REGISTER') & (df['technology_canonical'] == 'Solar PV') & (df['source_reference_id'].isin(mcs_solar_mpans)) & (df['dedup_status'] != 'DUPLICATE_REMOVED')]
+
+            solar_suppressed_count = 0
+            for idx in lct_solar_to_suppress.index:
+                df.loc[idx, 'dedup_status'] = 'DUPLICATE_REMOVED'
+                df.loc[idx, 'match_reason'] = 'Solar cross-source precedence: MCS takes precedence over LCT at shared MPAN'
+                solar_suppressed_count += 1
+
+            print(f"    LCT Solar rows suppressed by MCS precedence: {solar_suppressed_count:,}")
+
             # HP candidate flagging
             mcs_hp_mpans = set(df[(df['source'] == 'MCS') & (df['technology_canonical'] == 'Heat Pump') & (df['source_reference_id'].notna())]['source_reference_id'].unique())
             lct_hp_mpans = set(df[(df['source'] == 'LCT_REGISTER') & (df['technology_canonical'] == 'Heat Pump') & (df['source_reference_id'].notna())]['source_reference_id'].unique())
@@ -1148,11 +1161,14 @@ class LCTCanonicalProcessor:
             df_prod.to_csv(prod_path, index=False)
             print(f"  ✓ Production: {len(df_prod):,} rows")
 
-            total_removed = sum(dedup_results[k] for k in ['MCS_HP', 'LCT_HP', 'LCT_EV', 'MCS_Sol'])
-            print(f"\n  Total removed: {total_removed:,} (expected: 11,177) {'✓' if total_removed == 11177 else '✗ MISMATCH'}")
+            total_removed = sum(dedup_results[k] for k in ['MCS_HP', 'LCT_HP', 'LCT_EV', 'MCS_Sol']) + solar_suppressed_count
+            expected_total = 11177 + solar_suppressed_count
+            print(f"\n  Within-source dedup removed: {sum(dedup_results[k] for k in ['MCS_HP', 'LCT_HP', 'LCT_EV', 'MCS_Sol']):,}")
+            print(f"  Solar cross-source precedence removed: {solar_suppressed_count:,}")
+            print(f"  Total removed: {total_removed:,} (expected: {expected_total:,}) {'✓' if total_removed == expected_total else '✗ MISMATCH'}")
 
-            if total_removed != 11177:
-                raise ValueError(f"Removal count {total_removed} != expected 11,177")
+            if total_removed != expected_total:
+                raise ValueError(f"Removal count {total_removed} != expected {expected_total}")
 
             print(f"\n✓ Stage 2D complete")
 
