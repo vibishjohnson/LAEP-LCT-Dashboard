@@ -787,6 +787,220 @@ class LCTCanonicalProcessor:
         except Exception as e:
             print(f"✗ ERROR writing output: {e}")
 
+    def apply_stage_2c_methodology(self):
+        """Apply Stage 2C technology-specific methodology layer (downstream, non-mutating)"""
+        print("\n--- Applying Stage 2C Methodology ---")
+
+        canonical_path = os.path.join(self.output_dir, 'canonical_lct_observations.csv')
+
+        try:
+            df = pd.read_csv(canonical_path, low_memory=False)
+            print(f"  Read {len(df):,} canonical observations")
+
+            # Load LCT Register raw for access to Generation_Rating and Import_Rating
+            lct_path = os.path.join(self.data_dir, 'LCT Register.csv')
+            lct_raw = None
+            lct_ratings = {}
+            if os.path.exists(lct_path):
+                lct_raw = pd.read_csv(lct_path, low_memory=False)
+                # Create dict keyed by row index (matching source_row_id in canonical)
+                lct_raw.reset_index(drop=False, inplace=True)
+                for idx, row in lct_raw.iterrows():
+                    lct_ratings[idx] = {
+                        'Generation_Rating': pd.to_numeric(row.get('Generation_Rating', None), errors='coerce'),
+                        'Import_Rating': pd.to_numeric(row.get('Import_Rating', None), errors='coerce'),
+                    }
+                print(f"  Loaded {len(lct_ratings)} LCT Register raw records")
+
+            # Initialize Stage 2C columns
+            df['methodology_status'] = None
+            df['methodology_source_role'] = None
+            df['methodology_capacity_kw'] = None
+            df['methodology_capacity_source'] = None
+            df['methodology_capacity_band'] = None
+            df['methodology_flag'] = None
+            df['methodology_reason'] = None
+
+            # SMART ENQUIRIES ASSUMPTION (for Heat Pump/EV, not DG)
+            SMART_EXPECTED_COVERED_BY_LCT_REGISTER = True
+
+            # Apply methodology rules by source and technology
+            for idx, row in df.iterrows():
+                source = row['source']
+                tech_canonical = row['technology_canonical']
+                capacity_kw = pd.to_numeric(row['capacity_kw'], errors='coerce')
+
+                # Get raw rating fields for LCT Register from raw file
+                gen_rating = None
+                imp_rating = None
+                if source == 'LCT_REGISTER':
+                    source_row_id = int(row['source_row_id'])
+                    if source_row_id in lct_ratings:
+                        gen_rating = lct_ratings[source_row_id]['Generation_Rating']
+                        imp_rating = lct_ratings[source_row_id]['Import_Rating']
+
+                # ============================================================
+                # HEAT PUMP METHODOLOGY
+                # ============================================================
+                if tech_canonical == 'Heat Pump':
+                    if source == 'MCS':
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION_PRIMARY'
+                        df.loc[idx, 'methodology_capacity_kw'] = capacity_kw
+                        df.loc[idx, 'methodology_capacity_source'] = 'MCS_TOTAL_INSTALLED_CAPACITY'
+                        df.loc[idx, 'methodology_capacity_band'] = 'HP_UP_TO_70KW'
+                        if pd.notna(capacity_kw) and capacity_kw > 70:
+                            df.loc[idx, 'methodology_flag'] = 'HP_CAPACITY_OUTSIDE_VERIFIED_RANGE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_reason'] = 'MCS primary verified production source for Heat Pump ≤70 kW'
+
+                    elif source == 'LCT_REGISTER':
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION_SECONDARY'
+                        df.loc[idx, 'methodology_capacity_kw'] = imp_rating if pd.notna(imp_rating) else None
+                        df.loc[idx, 'methodology_capacity_source'] = 'LCT_IMPORT_RATING'
+                        df.loc[idx, 'methodology_capacity_band'] = 'HP_UP_TO_70KW'
+                        df.loc[idx, 'methodology_reason'] = 'LCT Register secondary production source; capacity from Import_Rating'
+
+                    elif source == 'DEVICE_REPORT':
+                        df.loc[idx, 'methodology_status'] = 'PRESERVE_ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_source_role'] = 'ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_capacity_band'] = 'HP_UP_TO_70KW'
+                        df.loc[idx, 'methodology_reason'] = 'Device Report; methodology role TO_CONFIRM'
+
+                # ============================================================
+                # EV CHARGING METHODOLOGY
+                # ============================================================
+                elif tech_canonical == 'EV Charging':
+                    if source == 'LCT_REGISTER':
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION'
+                        df.loc[idx, 'methodology_capacity_kw'] = imp_rating if pd.notna(imp_rating) else None
+                        df.loc[idx, 'methodology_capacity_source'] = 'LCT_IMPORT_RATING'
+                        df.loc[idx, 'methodology_capacity_band'] = 'EV_DOMESTIC'
+                        if pd.notna(imp_rating) and imp_rating > 7.6:
+                            df.loc[idx, 'methodology_flag'] = 'POTENTIAL_PUBLIC_OVERLAP_TO_CONFIRM'
+                        df.loc[idx, 'methodology_reason'] = 'LCT Register verified production for domestic EV charging'
+
+                    elif source == 'ZAPMAP':
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'PUBLIC_CHARGING'
+                        df.loc[idx, 'methodology_capacity_kw'] = capacity_kw
+                        # Preserve whether this is actual power or category assumption
+                        capacity_type = row.get('capacity_type', '')
+                        if capacity_type == 'ACTUAL_CONNECTOR_POWER':
+                            df.loc[idx, 'methodology_capacity_source'] = 'ZAPMAP_ACTUAL_CONNECTOR_POWER'
+                        else:
+                            df.loc[idx, 'methodology_capacity_source'] = 'ZAPMAP_CATEGORY_ASSUMPTION'
+                        df.loc[idx, 'methodology_capacity_band'] = 'EV_PUBLIC'
+                        df.loc[idx, 'methodology_reason'] = 'ZapMap verified production for public EV charging'
+
+                    elif source == 'MCS':
+                        df.loc[idx, 'methodology_status'] = 'EXCLUDE_NON_AUTHORITATIVE'
+                        df.loc[idx, 'methodology_source_role'] = 'NON_AUTHORITATIVE'
+                        df.loc[idx, 'methodology_capacity_band'] = 'EV_DOMESTIC'
+                        df.loc[idx, 'methodology_reason'] = 'MCS EV records not part of authoritative EV methodology'
+
+                    elif source == 'DEVICE_REPORT':
+                        df.loc[idx, 'methodology_status'] = 'PRESERVE_ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_source_role'] = 'ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_capacity_band'] = 'EV_DOMESTIC'
+                        df.loc[idx, 'methodology_reason'] = 'Device Report EV; methodology role TO_CONFIRM'
+
+                # ============================================================
+                # SOLAR PV / DG METHODOLOGY
+                # ============================================================
+                elif tech_canonical == 'Solar PV':
+                    if source == 'MCS':
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION_PRIMARY'
+                        df.loc[idx, 'methodology_capacity_kw'] = capacity_kw
+                        df.loc[idx, 'methodology_capacity_source'] = 'MCS_TOTAL_INSTALLED_CAPACITY'
+                        if pd.notna(capacity_kw):
+                            if capacity_kw < 50:
+                                df.loc[idx, 'methodology_capacity_band'] = 'DG_SMALL'
+                            elif capacity_kw == 50:
+                                df.loc[idx, 'methodology_capacity_band'] = 'DG_SMALL'
+                                df.loc[idx, 'methodology_flag'] = 'CAPACITY_BOUNDARY_EXACT_50KW_TO_CONFIRM'
+                            else:
+                                df.loc[idx, 'methodology_capacity_band'] = 'DG_SMALL'
+                                df.loc[idx, 'methodology_flag'] = 'DG_CAPACITY_OUTSIDE_VERIFIED_MCS_RANGE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_reason'] = 'MCS verified primary for small-scale DG (<50 kW)'
+
+                    elif source == 'ECR_SMALL':
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION_PRIMARY'
+                        df.loc[idx, 'methodology_capacity_kw'] = capacity_kw
+                        df.loc[idx, 'methodology_capacity_source'] = 'ECR_REGISTERED_CAPACITY'
+                        if pd.notna(capacity_kw):
+                            if capacity_kw < 1000:
+                                df.loc[idx, 'methodology_capacity_band'] = 'DG_MEDIUM'
+                            elif capacity_kw == 1000:
+                                df.loc[idx, 'methodology_capacity_band'] = 'DG_MEDIUM'
+                                df.loc[idx, 'methodology_flag'] = 'CAPACITY_BOUNDARY_EXACT_1MW_TO_CONFIRM'
+                            if capacity_kw == 50:
+                                df.loc[idx, 'methodology_flag'] = 'CAPACITY_BOUNDARY_EXACT_50KW_TO_CONFIRM'
+                        df.loc[idx, 'methodology_reason'] = 'ECR Small verified primary for medium-scale DG (50 kW–1 MW)'
+
+                    elif source == 'ECR_LARGE':
+                        df.loc[idx, 'methodology_status'] = 'INCLUDE'
+                        df.loc[idx, 'methodology_source_role'] = 'VERIFIED_PRODUCTION_PRIMARY'
+                        df.loc[idx, 'methodology_capacity_kw'] = capacity_kw
+                        df.loc[idx, 'methodology_capacity_source'] = 'ECR_REGISTERED_CAPACITY'
+                        df.loc[idx, 'methodology_capacity_band'] = 'DG_LARGE'
+                        if pd.notna(capacity_kw) and capacity_kw == 1000:
+                            df.loc[idx, 'methodology_flag'] = 'CAPACITY_BOUNDARY_EXACT_1MW_TO_CONFIRM'
+                        df.loc[idx, 'methodology_reason'] = 'ECR Large verified primary for large-scale DG (≥1 MW)'
+
+                    elif source == 'LCT_REGISTER':
+                        df.loc[idx, 'methodology_status'] = 'PRESERVE_ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_source_role'] = 'ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_capacity_band'] = 'DG_SMALL'
+                        df.loc[idx, 'methodology_reason'] = 'LCT Register Solar PV; DG methodology role TO_CONFIRM'
+
+                    elif source == 'DEVICE_REPORT':
+                        df.loc[idx, 'methodology_status'] = 'PRESERVE_ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_source_role'] = 'ROLE_TO_CONFIRM'
+                        df.loc[idx, 'methodology_capacity_band'] = 'DG_SMALL'
+                        df.loc[idx, 'methodology_reason'] = 'Device Report Solar PV; methodology role TO_CONFIRM'
+
+                # ============================================================
+                # BATTERY STORAGE METHODOLOGY
+                # ============================================================
+                elif tech_canonical == 'Battery Storage':
+                    df.loc[idx, 'methodology_status'] = 'PRESERVE_ROLE_TO_CONFIRM'
+                    df.loc[idx, 'methodology_source_role'] = 'ROLE_TO_CONFIRM'
+                    df.loc[idx, 'methodology_capacity_band'] = 'BATTERY_STORAGE'
+                    df.loc[idx, 'methodology_reason'] = 'Battery Storage separate technology; source precedence TO_CONFIRM'
+
+                # ============================================================
+                # NON-DASHBOARD / UNMAPPED TECHNOLOGIES
+                # ============================================================
+                elif pd.isna(tech_canonical) or tech_canonical is None:
+                    df.loc[idx, 'methodology_status'] = 'PRESERVE_NON_DASHBOARD'
+                    df.loc[idx, 'methodology_source_role'] = 'NON_DASHBOARD'
+                    df.loc[idx, 'methodology_capacity_band'] = 'NON_DASHBOARD'
+                    df.loc[idx, 'methodology_reason'] = 'Unmapped technology; preserved for future classification'
+
+                # ============================================================
+                # UNRECOGNIZED TECHNOLOGIES (should not occur with Stage 2B)
+                # ============================================================
+                else:
+                    df.loc[idx, 'methodology_status'] = 'PRESERVE_NON_DASHBOARD'
+                    df.loc[idx, 'methodology_source_role'] = 'UNCLASSIFIED'
+                    df.loc[idx, 'methodology_capacity_band'] = 'NOT_APPLICABLE'
+                    df.loc[idx, 'methodology_reason'] = f'Unrecognized technology: {tech_canonical}'
+
+            # Write Stage 2C output
+            output_path = os.path.join(self.output_dir, 'stage_2c_methodology_ready.csv')
+            df.to_csv(output_path, index=False)
+            print(f"✓ Written {len(df):,} methodology-ready observations to {output_path}")
+
+            return df
+
+        except Exception as e:
+            print(f"✗ ERROR applying Stage 2C methodology: {e}")
+            raise
+
     def print_canonical_audit(self):
         """Print comprehensive canonical audit"""
         print("\n" + "="*100)
@@ -846,6 +1060,7 @@ class LCTCanonicalProcessor:
             self.process_device_report()
 
             self.write_canonical_output()
+            self.apply_stage_2c_methodology()
             self.print_canonical_audit()
 
             print("\n✓ Pipeline complete")
