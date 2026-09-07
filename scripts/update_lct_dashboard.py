@@ -399,6 +399,7 @@ class LCTCanonicalProcessor:
                     capacity_status = 'MISSING'
 
                 event_date, date_valid = self.normalize_date(install_date_raw)
+                reporting_period = f"{event_date.strftime('%Y-%m')}" if date_valid and event_date else None
 
                 canonical_row = self.create_canonical_row(
                     source='LCT_REGISTER',
@@ -416,6 +417,7 @@ class LCTCanonicalProcessor:
                     technology_status='MAPPED' if is_mapped else 'UNMAPPED',
                     event_date_raw=install_date_raw,
                     event_date=event_date,
+                    reporting_period=reporting_period,
                     date_status='VALID' if date_valid else 'INVALID',
                     capacity_raw=capacity_raw,
                     capacity_value=None,
@@ -486,6 +488,10 @@ class LCTCanonicalProcessor:
                     if tech_canonical:
                         self.canonical_audit['ECR_Large']['tech_mapped'] += 1
 
+                    date_connected_raw = row.get('Date Connected')
+                    event_date, date_valid = self.normalize_date(date_connected_raw)
+                    reporting_period = f"{event_date.strftime('%Y-%m')}" if date_valid and event_date else None
+
                     canonical_row = self.create_canonical_row(
                         source='ECR_LARGE',
                         source_file=filename,
@@ -500,6 +506,10 @@ class LCTCanonicalProcessor:
                         technology_canonical=tech_canonical,
                         technology_detail=f'Energy Source {energy_src_num}',
                         technology_status='MAPPED' if is_mapped else 'UNMAPPED',
+                        event_date_raw=date_connected_raw,
+                        event_date=event_date,
+                        reporting_period=reporting_period,
+                        date_status='VALID' if date_valid else 'INVALID',
                         capacity_raw=capacity_raw,
                         capacity_value=capacity_kw,
                         capacity_unit='kW',
@@ -577,6 +587,10 @@ class LCTCanonicalProcessor:
 
                     tech_canonical, is_mapped = self.normalize_technology(tech_raw, 'ECR_Small')
 
+                    date_connected_raw = row.get('Date Connected')
+                    event_date, date_valid = self.normalize_date(date_connected_raw)
+                    reporting_period = f"{event_date.strftime('%Y-%m')}" if date_valid and event_date else None
+
                     canonical_row = self.create_canonical_row(
                         source='ECR_SMALL',
                         source_file=filename,
@@ -591,6 +605,10 @@ class LCTCanonicalProcessor:
                         technology_canonical=tech_canonical,
                         technology_detail=f'Energy Source {energy_src_num}, 50-1000 kW band',
                         technology_status='MAPPED' if is_mapped else 'UNMAPPED',
+                        event_date_raw=date_connected_raw,
+                        event_date=event_date,
+                        reporting_period=reporting_period,
+                        date_status='VALID' if date_valid else 'INVALID',
                         capacity_raw=capacity_raw,
                         capacity_value=capacity_value,
                         capacity_unit=capacity_unit,
