@@ -662,6 +662,11 @@ class LCTCanonicalProcessor:
 
                 capacity_raw = str(connector_power_raw) if pd.notna(connector_power_raw) else power_band_raw
 
+                # Extract and normalize ZapMap date: zapmap_connector_added_date
+                added_date_raw = row.get('zapmap_connector_added_date')
+                event_date, date_valid = self.normalize_date(added_date_raw)
+                reporting_period = f"{pd.to_datetime(added_date_raw).strftime('%Y-%m')}" if date_valid else None
+
                 canonical_row = self.create_canonical_row(
                     source='ZAPMAP',
                     source_file=filename,
@@ -677,6 +682,10 @@ class LCTCanonicalProcessor:
                     technology_canonical='EV Charging',
                     technology_detail='Public charging point',
                     technology_status='MAPPED',
+                    event_date_raw=added_date_raw,
+                    event_date=event_date,
+                    reporting_period=reporting_period,
+                    date_status='VALID' if date_valid else 'INVALID',
                     capacity_raw=capacity_raw,
                     capacity_value=capacity_kw,
                     capacity_unit='kW',
