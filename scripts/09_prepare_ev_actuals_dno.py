@@ -2,7 +2,8 @@
 """
 Prepare EV Actuals data at DNO level for dashboard comparison
 Aggregates quarterly EV stock data by DNO and vehicle type (BEV/PHEV)
-Note: Stock values stay constant within quarter, don't divide
+Note: Quarterly cumulative stock is mapped to quarter-end month only.
+Missing intervening months remain null (no actual observation).
 """
 
 import os
@@ -12,7 +13,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "project", "output_processed")
 
 print("=" * 70)
-print("EV Actuals - DNO Level Preparation")
+print("EV Actuals - DNO Level Preparation (Quarterly Semantics)")
 print("=" * 70)
 
 # Load EV quarterly LSOA-level data
@@ -24,19 +25,22 @@ print(f"Columns: {df_ev.columns.tolist()}")
 print(f"Periods: {sorted(df_ev['period'].unique())}")
 print(f"EV Types: {sorted(df_ev['EV_Type'].unique())}")
 
-# Map to fiscal year months (Apr 2025 - Mar 2026)
-# Quarterly stock values apply to all 3 months in that quarter
-def quarter_to_fiscal_months(period):
-    """Convert quarter to fiscal year months"""
-    if period == '2025-03':
-        return ['2025-04', '2025-05', '2025-06']
-    elif period == '2025-06':
-        return ['2025-07', '2025-08', '2025-09']
-    elif period == '2025-09':
-        return ['2025-10', '2025-11', '2025-12']
-    elif period == '2025-12':
-        return ['2026-01', '2026-02', '2026-03']
-    return []
+# Map quarters to quarter-end months only (not forward-filled)
+# Quarterly cumulative stock is a point-in-time observation
+def quarter_to_month(period):
+    """Map quarter period to its quarter-end month
+
+    Cumulative quarterly stock is observed at:
+    - 31 Mar 2025 for period 2025-03
+    - 30 Jun 2025 for period 2025-06
+    - 30 Sep 2025 for period 2025-09
+    - 31 Dec 2025 for period 2025-12
+    - 31 Mar 2026 for period 2026-03
+
+    It is NOT forward-filled into subsequent months.
+    Missing months remain null (no actual observation).
+    """
+    return period  # Return the quarter period as-is (it represents the quarter-end month)
 
 # Aggregate by DNO, period, and EV type (BEV/PHEV)
 dno_data = []
@@ -44,32 +48,36 @@ dno_data = []
 for (period, dno, ev_type), group in df_ev.groupby(['period', 'DNO', 'EV_Type']):
     total_ev = group['install_count'].sum()
 
-    # Map to fiscal months
-    fiscal_months = quarter_to_fiscal_months(period)
+    # Map quarter to its quarter-end month (no forward-fill)
+    quarter_month = quarter_to_month(period)
 
-    # Use same stock value for all 3 months in quarter (don't divide)
-    for month in fiscal_months:
-        dno_data.append({
-            'period': month,
-            'tech_type': 'EV',
-            'DNO': dno,
-            'EV_Type': ev_type,
-            'install_count': int(total_ev),  # No division - stock value
-            'total_kw': 0.0
-        })
+    # Single entry per quarter (cumulative stock at quarter-end)
+    dno_data.append({
+        'period': quarter_month,
+        'tech_type': 'EV',
+        'DNO': dno,
+        'EV_Type': ev_type,
+        'install_count': int(total_ev),  # Cumulative stock value at quarter-end
+        'total_kw': 0.0
+    })
 
-df_dno = pd.DataFrame(dno_data)
+df_dno = pd.DataFrame(dno_data).sort_values(['period', 'DNO', 'EV_Type'])
 
 print(f"\nAggregated to DNO level: {len(df_dno)} records")
-print(f"\nSample data (first 12 rows):")
-print(df_dno.head(12))
+print(f"(One entry per quarter-end observation per DNO per vehicle type)")
+print(f"\nSample data (first 6 rows):")
+print(df_dno.head(6))
 
-print(f"\n\nEV Stock Summary by Type:")
+print(f"\n\nQuarterly Observation Periods:")
+unique_periods = sorted(df_dno['period'].unique())
+print(f"  {unique_periods}")
+
+print(f"\n\nEV Stock by Type (at latest observation):")
+latest_period = df_dno['period'].max()
 for ev_type in sorted(df_dno['EV_Type'].unique()):
-    type_data = df_dno[df_dno['EV_Type'] == ev_type]
-    total = type_data['install_count'].sum()
-    avg = type_data.groupby('period')['install_count'].sum().mean()
-    print(f"  {ev_type}: Total {total:,} (Avg per month: {int(avg):,})")
+    latest_data = df_dno[(df_dno['period'] == latest_period) & (df_dno['EV_Type'] == ev_type)]
+    total = latest_data['install_count'].sum()
+    print(f"  {ev_type}: {total:,} vehicles (at {latest_period})")
 
 # Save
 out_path = os.path.join(OUTPUT_DIR, "ev_actuals_dno.csv")
@@ -77,6 +85,10 @@ df_dno.to_csv(out_path, index=False)
 
 print(f"\nEV Actuals (DNO level): {out_path}")
 print(f"Total records: {len(df_dno)}")
+print(f"Data represents quarterly cumulative vehicle stock")
+print(f"  - One observation per quarter-end month")
+print(f"  - No forward-fill into intervening months")
+print(f"  - Intervening months remain null (no actual observation)")
 
 print("\n" + "=" * 70)
-print("Done. Supports filtering by BEV / PHEV / Combined.")
+print("Done. Quarterly stock observations mapped to quarter-end months only.")
