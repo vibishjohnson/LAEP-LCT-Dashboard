@@ -13,7 +13,9 @@ DFES_DIR = os.path.join(PROJECT_ROOT, "dfes")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "project", "output_processed")
 
 # Configuration
-SCENARIO_WORLD = "Holistic Transition"
+# Note: Using HolisticTransition (no space) to match other DFES files like heat pump
+# If this doesn't match, will fall back to available scenarios
+SCENARIO_WORLD = "HolisticTransition"
 
 print("=" * 70)
 print("DFES EV Forecast Processing")
@@ -53,8 +55,49 @@ phev_cars['vehicle_type'] = 'Cars (PHEV)'
 bev_vans['vehicle_type'] = 'Vans (BEV)'
 phev_vans['vehicle_type'] = 'Vans (PHEV)'
 
-# Combine all
-df_all = pd.concat([bev_cars, phev_cars, bev_vans, phev_vans], ignore_index=True)
+# Read taxi/PHV file for BEV Taxis and BEV PHVs
+taxi_phv_file = os.path.join(DFES_DIR, "DFES 2026", "UKPN-electric-taxi-phv-scenarios-LSOA UPDATED.xlsx")
+if os.path.exists(taxi_phv_file):
+    df_taxi = pd.read_excel(taxi_phv_file, sheet_name='Taxi')
+    df_phv = pd.read_excel(taxi_phv_file, sheet_name='PHV')
+
+    # Filter to scenario
+    df_taxi = df_taxi[df_taxi['Scenario World'] == SCENARIO_WORLD].copy()
+    df_phv = df_phv[df_phv['Scenario World'] == SCENARIO_WORLD].copy()
+
+    print(f"  Taxi shape: {df_taxi.shape}, after scenario filter: {len(df_taxi)}")
+    print(f"  PHV shape: {df_phv.shape}, after scenario filter: {len(df_phv)}")
+
+    # Extract BEV only (NOT PHEV taxi/PHV per spec)
+    bev_taxi = df_taxi[df_taxi['Parameter'] == 'BEV Taxis'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+    bev_phv = df_phv[df_phv['Parameter'] == 'BEV PHVs'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+
+    bev_taxi['vehicle_type'] = 'Taxis (BEV)'
+    bev_phv['vehicle_type'] = 'PHVs (BEV)'
+else:
+    print(f"  Warning: Taxi/PHV file not found: {taxi_phv_file}")
+    bev_taxi = pd.DataFrame()
+    bev_phv = pd.DataFrame()
+
+# Read motorcycle file for BEV Motorcycles
+moto_file = os.path.join(DFES_DIR, "DFES 2026", "UKPN-electric-motorcycle-scenarios-LSOA-w-LAEP UPDATED.xlsx")
+if os.path.exists(moto_file):
+    df_moto = pd.read_excel(moto_file, sheet_name='motorcycles')
+
+    # Filter to scenario
+    df_moto = df_moto[df_moto['Scenario World'] == SCENARIO_WORLD].copy()
+
+    print(f"  Motorcycle shape: {df_moto.shape}, after scenario filter: {len(df_moto)}")
+
+    # Extract BEV only (NOT PHEV motorcycles per spec)
+    bev_moto = df_moto[df_moto['Parameter'] == 'BEV Motorcycles'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+    bev_moto['vehicle_type'] = 'Motorcycles (BEV)'
+else:
+    print(f"  Warning: Motorcycle file not found: {moto_file}")
+    bev_moto = pd.DataFrame()
+
+# Combine all (BEV cars, PHEV cars, BEV vans, PHEV vans, BEV taxis, BEV PHVs, BEV motorcycles)
+df_all = pd.concat([bev_cars, phev_cars, bev_vans, phev_vans, bev_taxi, bev_phv, bev_moto], ignore_index=True)
 df_all.columns = ['LSOA21CD', 'Scenario', 'value_2024', 'value_2025', 'vehicle_type']
 df_all['value_2024'] = pd.to_numeric(df_all['value_2024'], errors='coerce').fillna(0).astype(int)
 df_all['value_2025'] = pd.to_numeric(df_all['value_2025'], errors='coerce').fillna(0).astype(int)
