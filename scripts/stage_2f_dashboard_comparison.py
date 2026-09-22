@@ -40,7 +40,11 @@ print(f"Stage 2E actuals: {len(stage_2e_actuals):,} observations")
 # Load DFES forecast CSVs
 hp_forecast = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_heat_pump_forecast_holistic_transition.csv"))
 pv_forecast = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_solar_pv_forecast_high.csv"))
-ev_forecast = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_ev_forecast_reduced_demand.csv"))
+# Load EV forecast: combine Reduced Demand (Cars/Vans) and High (Taxis/PHVs/Motorcycles)
+# This represents the complete HolisticTransition world with all vehicle types
+ev_forecast_reduced = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_ev_forecast_reduced_demand.csv"))
+ev_forecast_high = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_ev_forecast_high.csv"))
+ev_forecast = pd.concat([ev_forecast_reduced, ev_forecast_high], ignore_index=True)
 
 print(f"DFES Heat Pump forecast: {len(hp_forecast):,} records")
 print(f"DFES Solar PV forecast: {len(pv_forecast):,} records")
@@ -208,7 +212,9 @@ for dno in ['EPN', 'LPN', 'SPN']:
             'comparison_unit': 'Number of installations',
             'capacity_known_count': 0.0,
             'capacity_unknown_count': 0.0,
-            'capacity_coverage_pct': 0.0
+            'capacity_coverage_pct': 0.0,
+            'dfes_opening_stock': hp_apr.get(dno, 0),
+            'dfes_closing_stock': hp_mar.get(dno, 0)
         })
 
 print(f"Heat Pump benchmarks added: {len([r for r in comparison_rows if r['tech_type'] == 'Heat Pump']):,} rows")
@@ -263,7 +269,9 @@ for dno in ['EPN', 'LPN', 'SPN']:
             'comparison_unit': 'Installed capacity (kW)',
             'capacity_known_count': capacity_known,
             'capacity_unknown_count': capacity_unknown,
-            'capacity_coverage_pct': capacity_coverage
+            'capacity_coverage_pct': capacity_coverage,
+            'dfes_opening_stock': pv_apr.get(dno, 0),
+            'dfes_closing_stock': pv_mar.get(dno, 0)
         })
 
 print(f"Solar PV benchmarks added: {len([r for r in comparison_rows if r['tech_type'] == 'Solar PV']):,} rows")
@@ -303,10 +311,124 @@ for dno in ['EPN', 'LPN', 'SPN']:
             'comparison_unit': 'Number of charger installations',
             'capacity_known_count': None,
             'capacity_unknown_count': None,
-            'capacity_coverage_pct': None
+            'capacity_coverage_pct': None,
+            'dfes_opening_stock': None,
+            'dfes_closing_stock': None
         })
 
 print(f"EV Charger records added: {len([r for r in comparison_rows if r['tech_type'] == 'EV Charger']):,} rows")
+
+# ============================================================================
+# EV Vehicles: Load actual from Stage 2E and compare vs DFES forecast
+# ============================================================================
+print("\nProcessing EV Vehicles (stock comparison)...")
+
+# Load EV actuals from Stage 2E canonical source (dashboard_data_lsoa.csv)
+dashboard_lsoa = pd.read_csv(os.path.join(OUTPUT_DIR, "dashboard_data_lsoa.csv"), low_memory=False)
+ev_lsoa_actuals = dashboard_lsoa[
+    (dashboard_lsoa['tech_type'] == 'EV') &
+    (dashboard_lsoa['DNO'].isin(['EPN', 'LPN', 'SPN'])) &
+    (dashboard_lsoa['period'] >= '2025-04') &
+    (dashboard_lsoa['period'] <= '2026-03')
+].copy()
+
+# Aggregate to DNO level, preserving EV_Type split
+ev_dno_actuals = ev_lsoa_actuals.groupby(['period', 'DNO', 'EV_Type'], as_index=False).agg(
+    install_count=('install_count', 'sum')
+)
+
+print(f"EV Vehicle actual records (DNO level): {len(ev_dno_actuals):,}")
+
+# DFES EV forecast: Map vehicle types to BEV/PHEV and aggregate to DNO level
+def map_vehicle_type_to_ev_class(vehicle_type_str):
+    """Map DFES vehicle types to BEV/PHEV classification"""
+    if pd.isna(vehicle_type_str):
+        return None
+    v = str(vehicle_type_str).upper()
+    if '(BEV)' in v:
+        return 'BEV'
+    elif '(PHEV)' in v:
+        return 'PHEV'
+    return None
+
+# Create mapped copy of forecast
+ev_forecast_mapped = ev_forecast.copy()
+ev_forecast_mapped['EV_Class'] = ev_forecast_mapped['vehicle_type'].apply(map_vehicle_type_to_ev_class)
+ev_forecast_mapped = ev_forecast_mapped[ev_forecast_mapped['EV_Class'].notna()].copy()
+
+# Aggregate DFES forecast to DNO level by EV_Class
+ev_forecast_dno = ev_forecast_mapped.groupby(['period', 'DNO', 'EV_Class'], as_index=False).agg(
+    forecast_value=('forecast_value', 'sum')
+)
+ev_forecast_dno.columns = ['period', 'DNO', 'EV_Type', 'forecast_value']
+
+print(f"DFES EV forecast records: {len(ev_forecast):,}")
+print(f"DFES EV forecast (mapped and aggregated): {len(ev_forecast_dno):,} records")
+
+# Derive DFES opening/closing stocks by EV_Type
+ev_apr_dno = ev_forecast_dno[ev_forecast_dno['period'] == '2025-04'].copy()
+ev_mar_dno = ev_forecast_dno[ev_forecast_dno['period'] == '2026-03'].copy()
+
+# Build EV comparison rows (quarter-end observations only: Jun, Sep, Dec, Mar - NOT April)
+quarter_end_months = ['2025-06', '2025-09', '2025-12', '2026-03']
+
+for dno in ['EPN', 'LPN', 'SPN']:
+    for period in quarter_end_months:
+        for ev_type in ['BEV', 'PHEV']:
+            # Actual: quarter-end observations only
+            actual_data = ev_dno_actuals[
+                (ev_dno_actuals['period'] == period) &
+                (ev_dno_actuals['DNO'] == dno) &
+                (ev_dno_actuals['EV_Type'] == ev_type)
+            ]
+
+            actual_count = actual_data['install_count'].values[0] if len(actual_data) > 0 else None
+
+            # DFES forecast: retrieve opening and closing stocks
+            ev_apr_row = ev_apr_dno[(ev_apr_dno['DNO'] == dno) & (ev_apr_dno['EV_Type'] == ev_type)]
+            ev_mar_row = ev_mar_dno[(ev_mar_dno['DNO'] == dno) & (ev_mar_dno['EV_Type'] == ev_type)]
+
+            dfes_opening = ev_apr_row['forecast_value'].values[0] if len(ev_apr_row) > 0 else None
+            dfes_closing = ev_mar_row['forecast_value'].values[0] if len(ev_mar_row) > 0 else None
+
+            # DFES forecast value for this period
+            dfes_period_row = ev_forecast_dno[
+                (ev_forecast_dno['period'] == period) &
+                (ev_forecast_dno['DNO'] == dno) &
+                (ev_forecast_dno['EV_Type'] == ev_type)
+            ]
+            dfes_value = dfes_period_row['forecast_value'].values[0] if len(dfes_period_row) > 0 else None
+
+            # Calculate variance and variance_pct
+            variance = None
+            variance_pct = None
+            if actual_count is not None and dfes_value is not None and dfes_value != 0:
+                variance = actual_count - dfes_value
+                variance_pct = 100 * variance / dfes_value
+
+            comparison_rows.append({
+                'period': period,
+                'tech_type': 'EV',
+                'DNO': dno,
+                'EV_Type': ev_type,
+                'actual_install_count': actual_count,
+                'actual_total_kw': None,
+                'actual_cumulative_count': actual_count,
+                'actual_cumulative_kw': None,
+                'dfes_monthly_benchmark': dfes_value,
+                'dfes_cumulative_benchmark': dfes_value,
+                'dfes_scenario': 'HolisticTransition',
+                'comparison_unit': 'Vehicle stock',
+                'capacity_known_count': None,
+                'capacity_unknown_count': None,
+                'capacity_coverage_pct': None,
+                'dfes_opening_stock': dfes_opening,
+                'dfes_closing_stock': dfes_closing,
+                'variance': variance,
+                'variance_pct': variance_pct
+            })
+
+print(f"EV Vehicle records added: {len([r for r in comparison_rows if r['tech_type'] == 'EV']):,} rows")
 
 # ============================================================================
 # STEP 4: BUILD OUTPUT DATAFRAME
@@ -353,23 +475,40 @@ for tech in ['Heat Pump', 'Solar PV']:
 
 # Test C: EV Charger has null DFES
 print("\nTest C: EV Charger DFES fields are null")
-ev_dfes_null = df_comparison[
+ev_charger_dfes_null = df_comparison[
     (df_comparison['tech_type'] == 'EV Charger') &
     (df_comparison['dfes_monthly_benchmark'].notna())
 ]
-if len(ev_dfes_null) == 0:
+if len(ev_charger_dfes_null) == 0:
     print("  PASSED")
 else:
-    print(f"  FAIL: {len(ev_dfes_null)} rows have non-null DFES values")
+    print(f"  FAIL: {len(ev_charger_dfes_null)} rows have non-null DFES values")
 
-# Test D: Exactly 12 periods per tech/DNO
-print("\nTest D: Exactly 12 periods per tech/DNO")
-periods_ok = all(
-    len(df_comparison[(df_comparison['tech_type'] == tech) & (df_comparison['DNO'] == dno)]) == 12
-    for tech in df_comparison['tech_type'].unique()
-    for dno in df_comparison['DNO'].unique()
-)
-print(f"  {'PASSED' if periods_ok else 'FAILED'}")
+# Test C2: EV Vehicles has DFES data
+print("\nTest C2: EV Vehicles has DFES data")
+if 'EV' in df_comparison['tech_type'].unique():
+    ev_with_dfes = df_comparison[(df_comparison['tech_type'] == 'EV') & (df_comparison['dfes_monthly_benchmark'].notna())]
+    ev_total = df_comparison[df_comparison['tech_type'] == 'EV']
+    print(f"  EV rows with DFES: {len(ev_with_dfes):,} of {len(ev_total):,}")
+    if len(ev_with_dfes) > 0:
+        print("  PASSED")
+    else:
+        print("  FAIL: No EV DFES comparisons found")
+else:
+    print("  INFO: No EV data in output")
+
+# Test D: Period count per tech/DNO (12 months for HP/Solar/EV Charger; 4 quarters×2 types for EV vehicles)
+print("\nTest D: Period count per tech/DNO")
+test_d_pass = True
+for tech in df_comparison['tech_type'].unique():
+    for dno in df_comparison['DNO'].unique():
+        count = len(df_comparison[(df_comparison['tech_type'] == tech) & (df_comparison['DNO'] == dno)])
+        expected = 8 if tech == 'EV' else 12  # EV: 4 quarters × 2 types (BEV/PHEV) = 8 rows
+        if count != expected:
+            print(f"  FAIL: {tech}/{dno} has {count} rows, expected {expected}")
+            test_d_pass = False
+if test_d_pass:
+    print(f"  PASSED")
 
 # ============================================================================
 # STEP 6: WRITE OUTPUT
