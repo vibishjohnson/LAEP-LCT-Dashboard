@@ -168,7 +168,7 @@ for scenario in sorted(df_monthly['Scenario'].unique()):
     print(f"  Total (Apr 2025 - Mar 2026): {total_forecast:,}")
 
 # Also save combined for dashboard
-df_combined = df_monthly[['period', 'tech_type', 'LSOA21CD', 'DNO', 'forecast_value', 'Scenario']].copy()
+df_combined = df_monthly[['period', 'tech_type', 'LSOA21CD', 'DNO', 'forecast_value', 'vehicle_type', 'Scenario']].copy()
 df_combined = df_combined.sort_values(['Scenario', 'period', 'LSOA21CD'])
 out_path_combined = os.path.join(OUTPUT_DIR, "dfes_ev_forecast_all.csv")
 df_combined.to_csv(out_path_combined, index=False)

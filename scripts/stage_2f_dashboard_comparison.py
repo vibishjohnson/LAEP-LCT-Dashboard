@@ -40,11 +40,8 @@ print(f"Stage 2E actuals: {len(stage_2e_actuals):,} observations")
 # Load DFES forecast CSVs
 hp_forecast = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_heat_pump_forecast_holistic_transition.csv"))
 pv_forecast = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_solar_pv_forecast_high.csv"))
-# Load EV forecast: combine Reduced Demand (Cars/Vans) and High (Taxis/PHVs/Motorcycles)
-# This represents the complete HolisticTransition world with all vehicle types
-ev_forecast_reduced = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_ev_forecast_reduced_demand.csv"))
-ev_forecast_high = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_ev_forecast_high.csv"))
-ev_forecast = pd.concat([ev_forecast_reduced, ev_forecast_high], ignore_index=True)
+# Load canonical EV forecast (complete HolisticTransition world with all vehicle types)
+ev_forecast = pd.read_csv(os.path.join(OUTPUT_DIR, "dfes_ev_forecast_all.csv"))
 
 print(f"DFES Heat Pump forecast: {len(hp_forecast):,} records")
 print(f"DFES Solar PV forecast: {len(pv_forecast):,} records")
