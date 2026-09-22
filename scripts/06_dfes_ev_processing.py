@@ -44,8 +44,8 @@ df_vans = df_vans[df_vans['Scenario World'] == SCENARIO_WORLD].copy()
 print(f"  After scenario filter: Cars {df_cars.shape[0]}, Vans {df_vans.shape[0]}")
 
 # Extract BEV + PHEV for both years (2024 = start of FY, 2025 = end of FY)
-bev_cars = df_cars[df_cars['Parameter'] == 'BEV cars'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
-phev_cars = df_cars[df_cars['Parameter'] == 'PHEV cars'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+bev_cars = df_cars[df_cars['Parameter'] == 'BEV Cars'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+phev_cars = df_cars[df_cars['Parameter'] == 'PHEV Cars'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
 bev_vans = df_vans[df_vans['Parameter'] == 'BEV Vans'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
 phev_vans = df_vans[df_vans['Parameter'] == 'PHEV Vans'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
 
@@ -69,8 +69,8 @@ if os.path.exists(taxi_phv_file):
     print(f"  PHV shape: {df_phv.shape}, after scenario filter: {len(df_phv)}")
 
     # Extract BEV only (NOT PHEV taxi/PHV per spec)
-    bev_taxi = df_taxi[df_taxi['Parameter'] == 'BEV Taxis'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
-    bev_phv = df_phv[df_phv['Parameter'] == 'BEV PHVs'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+    bev_taxi = df_taxi[df_taxi['Parameter'] == 'EV Taxis'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+    bev_phv = df_phv[df_phv['Parameter'] == 'EV PHVs'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
 
     bev_taxi['vehicle_type'] = 'Taxis (BEV)'
     bev_phv['vehicle_type'] = 'PHVs (BEV)'
@@ -90,7 +90,7 @@ if os.path.exists(moto_file):
     print(f"  Motorcycle shape: {df_moto.shape}, after scenario filter: {len(df_moto)}")
 
     # Extract BEV only (NOT PHEV motorcycles per spec)
-    bev_moto = df_moto[df_moto['Parameter'] == 'BEV Motorcycles'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+    bev_moto = df_moto[df_moto['Parameter'] == 'EV Motorcycles'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
     bev_moto['vehicle_type'] = 'Motorcycles (BEV)'
 else:
     print(f"  Warning: Motorcycle file not found: {moto_file}")
