@@ -1781,10 +1781,16 @@
                 chartTitle = 'EV Vehicle Stock Trajectory';
                 const evTraces = [];
                 if (showActual) {
+                    const estimatedStockY = stockData.map(d => {
+                        if (d.period === '2025-03') {
+                            return d.dfes_monthly_benchmark;
+                        }
+                        return d.comparison_point_type === 'Observation' ? d.actual_install_count : null;
+                    });
                     evTraces.push({
                         x: periods,
-                        y: stockData.map(d => d.comparison_point_type === 'Observation' ? d.actual_install_count : null),
-                        name: 'Actual',
+                        y: estimatedStockY,
+                        name: 'Estimated EV stock',
                         type: 'scatter',
                         mode: 'lines+markers',
                         connectgaps: false,
