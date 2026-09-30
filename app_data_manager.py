@@ -13,6 +13,7 @@ Access at: http://localhost:5000
 import os
 import sys
 import json
+import calendar
 from flask import Flask, render_template, jsonify, request
 
 # Add project root to path
@@ -296,7 +297,9 @@ def api_generate_nowcast():
                 "message": f"SMMT data not found for {year}-{month:02d}"
             })
 
-        month_str = f"{year}-{month:02d}-15"  # Mid-month date
+        # Generate month-end date using calendar.monthrange for robustness
+        last_day = calendar.monthrange(year, month)[1]
+        month_str = f"{year}-{month:02d}-{last_day:02d}"
         monthly_smmt[month_str] = {
             "BEV Cars": entry['bev_cars'],
             "BEV Vans": entry['bev_vans'],
