@@ -116,6 +116,19 @@
     <pre style="background: #f5f5f5; padding: 12px; border-radius: 4px; font-size: 0.85em; max-height: 300px; overflow-y: auto;">{{ qa_report }}</pre>
 </div>
 
+<div class="card" id="candidate-result" style="display: none;">
+    <h2 style="color: #009900;">Candidate Ready</h2>
+    <div style="background: #e6ffe6; padding: 15px; border-radius: 4px; border-left: 4px solid #009900;">
+        <p style="margin: 10px 0;"><strong>Candidate created successfully</strong></p>
+        <p style="font-size: 0.9em; color: #333; margin: 10px 0;" id="candidate-info"></p>
+        <div style="margin-top: 20px;">
+            <a id="review-promote-btn" href="#" style="display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 4px; font-weight: 600;">
+                REVIEW AND PROMOTE
+            </a>
+        </div>
+    </div>
+</div>
+
 {% endif %}
 
 {% endblock %}
@@ -133,14 +146,14 @@ document.getElementById('generate-btn').addEventListener('click', async function
     const msg = document.getElementById('generate-message');
 
     if (selected.length === 0) {
-        msg.textContent = '❌ Please select at least one month';
+        msg.textContent = 'Please select at least one month';
         msg.style.background = '#f8d7da';
         msg.style.color = '#721c24';
         msg.style.display = 'block';
         return;
     }
 
-    msg.textContent = '⏳ Generating nowcast...';
+    msg.textContent = 'Generating nowcast...';
     msg.style.background = '#d1ecf1';
     msg.style.color = '#0c5460';
     msg.style.display = 'block';
@@ -154,17 +167,24 @@ document.getElementById('generate-btn').addEventListener('click', async function
 
         const data = await response.json();
         if (data.success) {
-            msg.textContent = `✓ ${data.message}`;
+            msg.textContent = 'Nowcast generated successfully';
             msg.style.background = '#d4edda';
             msg.style.color = '#155724';
-            console.log('QA Report:', data.qa_report);
+
+            // Show candidate and promote workflow
+            if (data.run_id) {
+                document.getElementById('candidate-info').textContent =
+                    'Run ID: ' + data.run_id + ' | Baseline: 31 March 2026 | Status: READY FOR REVIEW';
+                document.getElementById('review-promote-btn').href = '/promotion-review/' + data.run_id;
+                document.getElementById('candidate-result').style.display = 'block';
+            }
         } else {
-            msg.textContent = `❌ ${data.message}`;
+            msg.textContent = data.message;
             msg.style.background = '#f8d7da';
             msg.style.color = '#721c24';
         }
     } catch (error) {
-        msg.textContent = `❌ Error: ${error.message}`;
+        msg.textContent = 'Error: ' + error.message;
         msg.style.background = '#f8d7da';
         msg.style.color = '#721c24';
     }

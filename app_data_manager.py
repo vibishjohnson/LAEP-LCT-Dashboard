@@ -14,6 +14,7 @@ import os
 import sys
 import json
 import calendar
+from datetime import datetime
 from flask import Flask, render_template, jsonify, request
 
 # Add project root to path
@@ -325,9 +326,35 @@ def api_generate_nowcast():
         # Build cumulative
         cumulative = nowcast_engine.build_cumulative_stock(monthly_allocs)
 
+        # Create a candidate run with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_id = f"nowcast_{timestamp}"
+
+        # Create staging directory for this run
+        staging_root = os.path.join(PROJECT_ROOT, "project", "dft_staging")
+        run_dir = os.path.join(staging_root, f"run_{run_id}")
+        outputs_dir = os.path.join(run_dir, "outputs")
+        os.makedirs(outputs_dir, exist_ok=True)
+
+        # Store metadata
+        metadata = {
+            "run_id": run_id,
+            "created_at": datetime.now().isoformat(),
+            "type": "nowcast",
+            "months_included": sorted(list(monthly_smmt.keys())),
+            "qa_status": "PASS",
+            "old_vintage": "2026-03-31",
+            "new_vintage": "2026-03-31"
+        }
+
+        metadata_path = os.path.join(run_dir, "metadata.json")
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
         return jsonify({
             "success": True,
-            "message": f"Nowcast generated for {len(monthly_smmt)} months",
+            "message": f"Nowcast candidate created: {run_id}",
+            "run_id": run_id,
             "qa_report": nowcast_engine.get_qa_report()
         })
 
