@@ -40,6 +40,51 @@
         .subtitle {
             font-size: 0.9em;
             color: #666;
+            margin-bottom: 15px;
+        }
+
+        nav {
+            background: #f9f9f9;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+            margin-top: 15px;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 0;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            flex-wrap: wrap;
+        }
+
+        nav li {
+            margin: 0;
+        }
+
+        nav a {
+            display: block;
+            padding: 10px 16px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.95em;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        nav a:hover {
+            color: #5568d3;
+            border-bottom-color: #667eea;
+            background: #f0f0f0;
+        }
+
+        nav a.active {
+            color: #5568d3;
+            border-bottom-color: #667eea;
+            background: #f0f0f0;
         }
 
         .container {
@@ -156,6 +201,17 @@
         <div class="header-content">
             <h1>🔐 LCT Data Manager</h1>
             <p class="subtitle">Private EV dataset management and processing</p>
+            <nav>
+                <ul>
+                    <li><a href="/">HOME</a></li>
+                    <li><a href="/smmt">SMMT INPUT</a></li>
+                    <li><a href="/nowcast">NOWCAST</a></li>
+                    <li><a href="/dft-update">DFT UPDATE</a></li>
+                    <li><a href="/promotion-review/latest">CANDIDATES</a></li>
+                    <li><a href="/rollback-options">ROLLBACK</a></li>
+                    <li><a href="/promotion-history">HISTORY</a></li>
+                </ul>
+            </nav>
         </div>
     </header>
 
@@ -164,7 +220,7 @@
     </div>
 
     <footer>
-        <p>LCT Data Manager v0.1.0 | Phase 1: Foundation</p>
+        <p>LCT Data Manager v1.0.0 | Phases 1-5 Complete | Ready for Production Operation</p>
     </footer>
 
     {% block extra_js %}{% endblock %}

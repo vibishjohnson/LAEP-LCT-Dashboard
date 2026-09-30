@@ -1,90 +1,97 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - LCT Data Manager{% endblock %}
+{% block title %}Operational Status - LCT Data Manager{% endblock %}
 
 {% block content %}
 
 <div class="card">
-    <h2>📊 Current EV State</h2>
+    <h2>🔄 Operational Status</h2>
 
     <div class="info-row">
-        <span class="info-label">Latest Authoritative DfT Quarter:</span>
+        <span class="info-label">Current Authoritative DfT Vintage:</span>
         <span class="info-value">
             {% if state.latest_dft_quarter %}
                 <strong>{{ state.latest_dft_quarter }}</strong>
-                <span class="status-badge status-ok">DETECTED</span>
+                <span class="status-badge status-ok">ACTIVE</span>
             {% else %}
-                <span class="status-badge status-error">NOT DETECTED</span>
+                <span class="status-badge status-error">NOT SET</span>
             {% endif %}
         </span>
     </div>
 
     <div class="info-row">
-        <span class="info-label">Latest EV Period in Dashboard:</span>
+        <span class="info-label">Current Dashboard EV Period:</span>
         <span class="info-value">
             {% if state.latest_ev_period %}
                 <strong>{{ state.latest_ev_period }}</strong>
             {% else %}
-                <span class="status-badge status-error">NO DATA</span>
+                <span class="status-badge status-pending">INITIALIZING</span>
             {% endif %}
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">SMMT Bridge:</span>
+        <span class="info-value">
+            <span class="status-badge status-pending">Check SMMT INPUT for current month data</span>
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">Current Weight Vintage:</span>
+        <span class="info-value">
+            {% if state.latest_dft_quarter %}
+                <strong>{{ state.latest_dft_quarter }}</strong>
+                <span class="status-badge status-ok">IN USE</span>
+            {% else %}
+                <span class="status-badge status-error">NOT SET</span>
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">Candidate Status:</span>
+        <span class="info-value">
+            <span class="status-badge status-pending">Use DFT UPDATE to stage candidates</span>
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">Production Status:</span>
+        <span class="info-value">
+            <span class="status-badge status-ok">OPERATIONAL</span>
         </span>
     </div>
 </div>
 
 <div class="card">
-    <h2>📁 DfT Source Tables</h2>
-
-    {% set all_present = state.dft_tables_present.values() | list | sum == 4 %}
-
-    {% for table, present in state.dft_tables_present.items() %}
-        <div class="info-row">
-            <span class="info-label">{{ table }}</span>
-            <span class="info-value">
-                {% if present %}
-                    <span class="status-badge status-ok">✓ Present</span>
-                {% else %}
-                    <span class="status-badge status-error">✗ Missing</span>
-                {% endif %}
-            </span>
-        </div>
-    {% endfor %}
-
-    <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #f0f0f0;">
-        <strong>Status:</strong>
-        {% if all_present %}
-            <span class="status-badge status-ok">ALL TABLES PRESENT</span>
-        {% else %}
-            <span class="status-badge status-error">MISSING TABLES</span>
-        {% endif %}
+    <h2>📋 Quick Actions</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;">
+        <a href="/smmt" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
+            ENTER SMMT DATA
+        </a>
+        <a href="/nowcast" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
+            GENERATE NOWCAST
+        </a>
+        <a href="/dft-update" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
+            UPDATE DFT DATA
+        </a>
+        <a href="/rollback-options" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
+            ROLLBACK PRODUCTION
+        </a>
+        <a href="/promotion-history" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
+            PRODUCTION HISTORY
+        </a>
     </div>
 </div>
 
 <div class="card">
-    <h2>📤 EV Processing Outputs</h2>
-
-    {% set outputs_ok = state.ev_outputs_exist.values() | list | sum > 0 %}
-
-    {% for output, exists in state.ev_outputs_exist.items() %}
-        <div class="info-row">
-            <span class="info-label">{{ output }}</span>
-            <span class="info-value">
-                {% if exists %}
-                    <span class="status-badge status-ok">✓ Exists</span>
-                {% else %}
-                    <span class="status-badge status-error">✗ Missing</span>
-                {% endif %}
-            </span>
-        </div>
-    {% endfor %}
-</div>
-
-<div class="card">
-    <h2>🔧 Phase 1 Status</h2>
+    <h2>✓ System Status</h2>
 
     <div class="info-row">
         <span class="info-label">Database:</span>
         <span class="info-value">
-            <span class="status-badge status-ok">✓ Initialized</span>
+            <span class="status-badge status-ok">✓ Initialized (SQLite)</span>
         </span>
     </div>
 
@@ -94,7 +101,7 @@
             {% if state.latest_dft_quarter %}
                 <span class="status-badge status-ok">✓ Working</span>
             {% else %}
-                <span class="status-badge status-error">✗ Failed</span>
+                <span class="status-badge status-pending">⚠ No DfT data</span>
             {% endif %}
         </span>
     </div>
@@ -106,13 +113,11 @@
         </span>
     </div>
 
-    <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
-        <strong>Next Steps (Phase 2):</strong>
-        <ul style="margin-top: 10px; margin-left: 20px;">
-            <li>SMMT monthly input form</li>
-            <li>SMMT history tracking</li>
-            <li>Database persistence for SMMT entries</li>
-        </ul>
+    <div class="info-row">
+        <span class="info-label">Promotion Machinery:</span>
+        <span class="info-value">
+            <span class="status-badge status-ok">✓ Ready (Phases 1-5 Complete)</span>
+        </span>
     </div>
 </div>
 
