@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}SMMT Input - LCT Data Manager{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <h2>📊 Authoritative DfT State</h2>
+    <div class="info-row">
+        <span class="info-label">Latest Authoritative Quarter:</span>
+        <span class="info-value">
+            {% if latest_dft_quarter %}
+                <strong>{{ latest_dft_quarter }}</strong>
+                {% if dft_quarter_name %}<span class="status-badge status-ok">{{ dft_quarter_name }}</span>{% endif %}
+            {% else %}
+                <span class="status-badge status-error">Unable to detect</span>
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">Latest SMMT Entry:</span>
+        <span class="info-value">
+            {% if latest_smmt_month %}
+                <strong>{{ latest_smmt_month }}</strong>
+            {% else %}
+                <span style="color: #999;">None yet</span>
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">Current SMMT Bridge:</span>
+        <span class="info-value">
+            {% if latest_dft_quarter and latest_smmt_month %}
+                {{ latest_dft_quarter }} → {{ latest_smmt_month }}
+            {% else %}
+                <span style="color: #999;">Waiting for first entry</span>
+            {% endif %}
+        </span>
+    </div>
+</div>
+
+<div class="card">
+    <h2>✏️ SMMT Monthly Input</h2>
+
+    <form id="smmt-form" style="margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div>
+                <label for="month" style="display: block; font-weight: 600; margin-bottom: 8px;">Month:</label>
+                <select id="month" name="month" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="">Select month...</option>
+                    {% for m in range(1, 13) %}
+                        <option value="{{ m }}" {% if suggested_month and m == suggested_month[1] %}selected{% endif %}>
+                            {{ month_names[m-1] }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="year" style="display: block; font-weight: 600; margin-bottom: 8px;">Year:</label>
+                <select id="year" name="year" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="">Select year...</option>
+                    {% for y in range(2024, 2028) %}
+                        <option value="{{ y }}" {% if suggested_month and y == suggested_month[0] %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div>
+                <label for="bev_cars" style="display: block; font-weight: 600; margin-bottom: 8px;">BEV Cars:</label>
+                <input type="text" id="bev_cars" name="bev_cars" placeholder="0" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+
+            <div>
+                <label for="bev_vans" style="display: block; font-weight: 600; margin-bottom: 8px;">BEV Vans:</label>
+                <input type="text" id="bev_vans" name="bev_vans" placeholder="0" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div>
+                <label for="phev_cars" style="display: block; font-weight: 600; margin-bottom: 8px;">PHEV Cars:</label>
+                <input type="text" id="phev_cars" name="phev_cars" placeholder="0" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+
+            <div>
+                <label for="phev_vans" style="display: block; font-weight: 600; margin-bottom: 8px;">PHEV Vans:</label>
+                <input type="text" id="phev_vans" name="phev_vans" placeholder="0" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label for="notes" style="display: block; font-weight: 600; margin-bottom: 8px;">Notes (optional):</label>
+            <textarea id="notes" name="notes" placeholder="Add any notes about this entry..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; min-height: 60px;"></textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button type="button" id="save-btn" class="geo-btn" style="background: #28a745; color: white; border-color: #28a745;">Validate & Save</button>
+            <button type="reset" class="geo-btn" style="background: #f5f5f5; color: #333;">Clear</button>
+        </div>
+
+        <div id="form-message" style="margin-top: 15px; padding: 12px; border-radius: 4px; display: none;"></div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>📋 SMMT Entry History</h2>
+
+    {% if history %}
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.95em;">
+            <thead style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+                <tr>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Month</th>
+                    <th style="padding: 12px; text-align: right; font-weight: 600;">BEV Cars</th>
+                    <th style="padding: 12px; text-align: right; font-weight: 600;">BEV Vans</th>
+                    <th style="padding: 12px; text-align: right; font-weight: 600;">PHEV Cars</th>
+                    <th style="padding: 12px; text-align: right; font-weight: 600;">PHEV Vans</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Status</th>
+                    <th style="padding: 12px; text-align: center; font-weight: 600;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in history %}
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">{{ entry.month_display }} {{ entry.year }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ entry.bev_cars_formatted }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ entry.bev_vans_formatted }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ entry.phev_cars_formatted }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ entry.phev_vans_formatted }}</td>
+                        <td style="padding: 12px;">
+                            <span class="status-badge status-active">{{ entry.status }}</span>
+                            {% if entry.version_count > 1 %}
+                                <span style="font-size: 0.85em; color: #999; margin-left: 5px;">(v{{ entry.version_count }})</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 12px; text-align: center;">
+                            <button class="edit-btn" data-year="{{ entry.year }}" data-month="{{ entry.month }}" style="padding: 4px 8px; font-size: 0.85em; cursor: pointer;">Edit</button>
+                            {% if entry.version_count > 1 %}
+                                <button class="history-btn" data-year="{{ entry.year }}" data-month="{{ entry.month }}" style="padding: 4px 8px; font-size: 0.85em; cursor: pointer; margin-left: 4px;">History</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #999; padding: 20px; text-align: center;">No SMMT entries yet. Start by entering data for {{ suggested_month_display or 'the recommended month' }}.</p>
+    {% endif %}
+</div>
+
+<!-- History Modal -->
+<div id="history-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="position: relative; background: white; margin: 30px auto; width: 90%; max-width: 700px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        <div style="padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="history-title" style="margin: 0;">Entry History</h3>
+            <button id="close-history-btn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button>
+        </div>
+        <div id="history-content" style="padding: 20px; max-height: 500px; overflow-y: auto;">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Format numbers with commas
+function formatNumber(num) {
+    if (!num) return '';
+    return parseInt(num.toString().replace(/,/g, '')).toLocaleString();
+}
+
+// Format input on blur
+['bev_cars', 'bev_vans', 'phev_cars', 'phev_vans'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) {
+        input.addEventListener('blur', function() {
+            this.value = formatNumber(this.value);
+        });
+    }
+});
+
+// Validate & Save button
+document.getElementById('save-btn').addEventListener('click', async function() {
+    const month = document.getElementById('month').value;
+    const year = document.getElementById('year').value;
+    const bev_cars = document.getElementById('bev_cars').value.replace(/,/g, '');
+    const bev_vans = document.getElementById('bev_vans').value.replace(/,/g, '');
+    const phev_cars = document.getElementById('phev_cars').value.replace(/,/g, '');
+    const phev_vans = document.getElementById('phev_vans').value.replace(/,/g, '');
+    const notes = document.getElementById('notes').value;
+    const msg = document.getElementById('form-message');
+
+    // Validation
+    if (!month || !year) {
+        msg.textContent = '❌ Month and year are required';
+        msg.style.background = '#f8d7da';
+        msg.style.color = '#721c24';
+        msg.style.display = 'block';
+        return;
+    }
+
+    if (!bev_cars || !bev_vans || !phev_cars || !phev_vans) {
+        msg.textContent = '❌ All vehicle values are required (BEV Cars, BEV Vans, PHEV Cars, PHEV Vans)';
+        msg.style.background = '#f8d7da';
+        msg.style.color = '#721c24';
+        msg.style.display = 'block';
+        return;
+    }
+
+    // Validate numbers are non-negative
+    const values = {
+        'BEV Cars': parseInt(bev_cars),
+        'BEV Vans': parseInt(bev_vans),
+        'PHEV Cars': parseInt(phev_cars),
+        'PHEV Vans': parseInt(phev_vans)
+    };
+
+    for (const [name, val] of Object.entries(values)) {
+        if (isNaN(val) || val < 0) {
+            msg.textContent = `❌ ${name} must be a non-negative number`;
+            msg.style.background = '#f8d7da';
+            msg.style.color = '#721c24';
+            msg.style.display = 'block';
+            return;
+        }
+    }
+
+    // Show validation passed
+    msg.textContent = '✓ Validation passed. Saving...';
+    msg.style.background = '#d4edda';
+    msg.style.color = '#155724';
+    msg.style.display = 'block';
+
+    try {
+        const response = await fetch('/api/smmt-entry', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                year: parseInt(year),
+                month: parseInt(month),
+                bev_cars: parseInt(bev_cars),
+                bev_vans: parseInt(bev_vans),
+                phev_cars: parseInt(phev_cars),
+                phev_vans: parseInt(phev_vans),
+                notes
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            msg.textContent = `✓ ${data.message}`;
+            msg.style.background = '#d4edda';
+            msg.style.color = '#155724';
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            msg.textContent = `❌ ${data.message}`;
+            msg.style.background = '#f8d7da';
+            msg.style.color = '#721c24';
+        }
+        msg.style.display = 'block';
+    } catch (error) {
+        msg.textContent = `❌ Error: ${error.message}`;
+        msg.style.background = '#f8d7da';
+        msg.style.color = '#721c24';
+        msg.style.display = 'block';
+    }
+});
+
+// Edit button handler
+document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const year = parseInt(this.dataset.year);
+        const month = parseInt(this.dataset.month);
+        // Load entry and populate form
+        fetch(`/api/smmt-entry?year=${year}&month=${month}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.entry) {
+                    document.getElementById('year').value = year;
+                    document.getElementById('month').value = month;
+                    document.getElementById('bev_cars').value = formatNumber(data.entry.bev_cars);
+                    document.getElementById('bev_vans').value = formatNumber(data.entry.bev_vans);
+                    document.getElementById('phev_cars').value = formatNumber(data.entry.phev_cars);
+                    document.getElementById('phev_vans').value = formatNumber(data.entry.phev_vans);
+                    document.getElementById('notes').value = data.entry.notes || '';
+                    document.getElementById('save-btn').textContent = 'Correct Entry';
+                    window.scrollTo(0, 0);
+                }
+            });
+    });
+});
+
+// History button handler
+document.querySelectorAll('.history-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const year = parseInt(this.dataset.year);
+        const month = parseInt(this.dataset.month);
+        const monthName = this.parentElement.parentElement.querySelector('td:first-child').textContent.trim();
+
+        try {
+            const response = await fetch(`/api/smmt-entry-history?year=${year}&month=${month}`);
+            const data = await response.json();
+
+            if (data.versions && data.versions.length > 0) {
+                // Build history content
+                let html = `<h4 style="margin-top: 0; color: #2d3748;">${monthName}</h4>`;
+
+                data.versions.forEach((ver, idx) => {
+                    const isActive = ver.is_current === 1 || ver.is_current === true;
+                    const versionNum = data.versions.length - idx;
+                    const status = isActive ? 'CURRENT' : 'SUPERSEDED';
+                    const statusColor = isActive ? '#22c55e' : '#999';
+
+                    html += `
+                    <div style="padding: 12px; background: #f9f9f9; border-radius: 4px; margin-bottom: 10px; border-left: 4px solid ${statusColor};">
+                        <strong>v${versionNum} ${status}</strong>
+                        <div style="font-size: 0.85em; color: #666; margin-top: 4px;">
+                            Entered: ${ver.entered_at || 'Unknown'}
+                            ${ver.corrected_at ? `<br>Corrected: ${ver.corrected_at}` : ''}
+                        </div>
+                        <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9em;">
+                            <div>BEV Cars: <strong>${formatNumber(ver.bev_cars)}</strong></div>
+                            <div>BEV Vans: <strong>${formatNumber(ver.bev_vans)}</strong></div>
+                            <div>PHEV Cars: <strong>${formatNumber(ver.phev_cars)}</strong></div>
+                            <div>PHEV Vans: <strong>${formatNumber(ver.phev_vans)}</strong></div>
+                        </div>
+                        ${ver.notes ? `<div style="font-size: 0.85em; color: #666; margin-top: 6px; font-style: italic;">Notes: ${ver.notes}</div>` : ''}
+                    </div>
+                    `;
+                });
+
+                document.getElementById('history-title').textContent = `Entry History — ${monthName}`;
+                document.getElementById('history-content').innerHTML = html;
+                document.getElementById('history-modal').style.display = 'block';
+            }
+        } catch (error) {
+            alert(`Error loading history: ${error.message}`);
+        }
+    });
+});
+
+// Close history modal
+document.getElementById('close-history-btn').addEventListener('click', function() {
+    document.getElementById('history-modal').style.display = 'none';
+});
+
+document.getElementById('history-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        this.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

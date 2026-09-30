@@ -1,0 +1,100 @@
+{
+  "generated_at": "2026-09-29T13:23:43.696095",
+  "tech_type": "Heat Pump",
+  "latest_actual_period": "2026-03",
+  "actual_notes": {
+    "source": "dashboard_comparison_* (Stage 2F; Stage 2D INCLUDE observations)",
+    "grain": "month",
+    "window": "2025-04 to 2026-03",
+    "latest_complete_period": "2026-03",
+    "window_rule": "Closed FY 2025/26 window from Stage 2E/2F, not max(date) of raw registers. All twelve months in the window are retained, including zero-install months.",
+    "n_dno": 36,
+    "n_la": 1440,
+    "n_laep": 168,
+    "dno_install_sum": 19332.0
+  },
+  "forecast_start_period": "2025-03",
+  "forecast_end_period": "2051-03",
+  "data_horizon": "2025-03 to 2051-03",
+  "display_start_period": "2025-04",
+  "display_end_period": "2026-03",
+  "display_horizon_note": "Visible HP chart follows the existing dashboard window 2025-04 to 2026-03. Change display_end_period in dashboard.html (HP_DISPLAY_END_PERIOD) without deleting future forecast rows.",
+  "neso_horizon_years": "2024-2050",
+  "dfes_horizon_years": "2024-2050",
+  "neso_anchor_dates": "2025-03-31 to 2051-03-31",
+  "year_offset": 0,
+  "dfes_workbook": "C:\\Users\\johns2v\\Desktop\\LAEP LCT Dashboard\\dfes\\DFES 2026\\UKPN-domestic-heating-scenarios-LSOA-w-LAEP.xlsx",
+  "hp_outputs_untouched": true,
+  "protected_files_untouched": true,
+  "qa_pass": true,
+  "bb_mapping": {
+    "Lct_BB005": "Domestic heat pump",
+    "Lct_BB006": "Domestic hybrid heat pump",
+    "Total Heat Pumps": "BB005 + BB006 at query/display only; no synthetic BB"
+  },
+  "file_stats": {
+    "hp_annual_forecast_anchors.csv": {
+      "path": "C:\\Users\\johns2v\\Desktop\\tRESP disagg\\EVs LAEP\\dashboard_integration\\outputs\\hp_annual_forecast_anchors.csv",
+      "exists": true,
+      "rows": 1779462,
+      "bytes": 217561558,
+      "mb": 207.483
+    },
+    "hp_monthly_forecast_dno.csv": {
+      "path": "C:\\Users\\johns2v\\Desktop\\tRESP disagg\\EVs LAEP\\dashboard_integration\\outputs\\hp_monthly_forecast_dno.csv",
+      "exists": true,
+      "rows": 5634,
+      "bytes": 888884,
+      "mb": 0.848
+    },
+    "hp_monthly_forecast_la.csv": {
+      "path": "C:\\Users\\johns2v\\Desktop\\tRESP disagg\\EVs LAEP\\dashboard_integration\\outputs\\hp_monthly_forecast_la.csv",
+      "exists": true,
+      "rows": 225986,
+      "bytes": 39463830,
+      "mb": 37.636
+    },
+    "hp_monthly_forecast_laep.csv": {
+      "path": "C:\\Users\\johns2v\\Desktop\\tRESP disagg\\EVs LAEP\\dashboard_integration\\outputs\\hp_monthly_forecast_laep.csv",
+      "exists": true,
+      "rows": 26292,
+      "bytes": 4486512,
+      "mb": 4.279
+    },
+    "hp_actuals_dno.csv": {
+      "path": "C:\\Users\\johns2v\\Desktop\\tRESP disagg\\EVs LAEP\\dashboard_integration\\outputs\\hp_actuals_dno.csv",
+      "exists": true,
+      "rows": 36,
+      "bytes": 5398,
+      "mb": 0.005
+    },
+    "hp_actuals_la.csv": {
+      "path": "C:\\Users\\johns2v\\Desktop\\tRESP disagg\\EVs LAEP\\dashboard_integration\\outputs\\hp_actuals_la.csv",
+      "exists": true,
+      "rows": 1440,
+      "bytes": 216355,
+      "mb": 0.206
+    },
+    "hp_actuals_laep.csv": {
+      "path": "C:\\Users\\johns2v\\Desktop\\tRESP disagg\\EVs LAEP\\dashboard_integration\\outputs\\hp_actuals_laep.csv",
+      "exists": true,
+      "rows": 168,
+      "bytes": 24886,
+      "mb": 0.024
+    }
+  },
+  "excluded_lsoas": [
+    "E01001196",
+    "E01001239",
+    "E01001244",
+    "E01001281",
+    "E01001377",
+    "E01002579",
+    "E01002693",
+    "E01003871",
+    "E01030920",
+    "E01032572",
+    "E01032610",
+    "E01034452"
+  ]
+}

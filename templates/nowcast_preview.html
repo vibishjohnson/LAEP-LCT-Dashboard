@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}SMMT Nowcast Preview{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <h2>📊 SMMT Nowcast Preview</h2>
+    <p style="color: #666; font-size: 0.95em;">
+        <strong>Status:</strong> <span class="status-badge" style="background: #fef3c7; color: #92400e;">CANDIDATE DATA</span>
+        This is preview/candidate data. Not yet promoted to production.
+    </p>
+</div>
+
+{% if error %}
+    <div class="card" style="background: #fee; border-left: 4px solid #c00;">
+        <strong style="color: #c00;">⚠️ Error:</strong> {{ error }}
+    </div>
+{% else %}
+
+<div class="card">
+    <h3>Authoritative DfT Baseline</h3>
+    <div style="background: #f5f5f5; padding: 12px; border-radius: 4px;">
+        <strong>Latest authoritative period:</strong> 2026-03-31 (Q1 2026)
+    </div>
+    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+        All SMMT allocations use this DfT vintage as the weight base.
+    </p>
+</div>
+
+<div class="card">
+    <h3>GB → UKPN Weight Factors (Q1 2026)</h3>
+    <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
+        These shares determine what % of national SMMT registrations are allocated to UKPN for each category.
+    </p>
+
+    {% if weights_summary %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead style="background: #f5f5f5;">
+                <tr>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Category</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">GB Total</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">UKPN Total</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">UKPN Weight</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">LSOAs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat, summary in weights_summary.items() %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 12px;">{{ cat }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ "{:,}".format(summary.gb_total) }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ "{:,}".format(summary.ukpn_total) }}</td>
+                        <td style="padding: 12px; text-align: right;"><strong>{{ summary.ukpn_weight }}</strong></td>
+                        <td style="padding: 12px; text-align: right;">{{ summary.lsoa_count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>SMMT Input Data</h3>
+    <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
+        Showing SMMT entries ready for nowcast allocation.
+    </p>
+
+    {% if smmt_history %}
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+            <thead style="background: #f5f5f5;">
+                <tr>
+                    <th style="padding: 12px; text-align: left;">Month</th>
+                    <th style="padding: 12px; text-align: right;">BEV Cars</th>
+                    <th style="padding: 12px; text-align: right;">BEV Vans</th>
+                    <th style="padding: 12px; text-align: right;">PHEV Cars</th>
+                    <th style="padding: 12px; text-align: right;">PHEV Vans</th>
+                    <th style="padding: 12px; text-align: center;">Select</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in smmt_history %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 12px;">{{ entry.year }}-{{ "{:02d}".format(entry.month) }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ "{:,}".format(entry.bev_cars) }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ "{:,}".format(entry.bev_vans) }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ "{:,}".format(entry.phev_cars) }}</td>
+                        <td style="padding: 12px; text-align: right;">{{ "{:,}".format(entry.phev_vans) }}</td>
+                        <td style="padding: 12px; text-align: center;">
+                            <input type="checkbox" class="month-select" value="{{ entry.year }},{{ entry.month }}">
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #999;">No SMMT entries yet. Add entries in the SMMT Input section first.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Generate Nowcast</h3>
+    <div style="margin: 15px 0;">
+        <button id="generate-btn" class="geo-btn" style="background: #667eea; color: white; border-color: #667eea; cursor: pointer;">
+            [ GENERATE NOWCAST ]
+        </button>
+        <p style="font-size: 0.85em; color: #666; margin-top: 10px;">
+            Allocates selected SMMT months to UKPN and generates cumulative stock estimates.
+        </p>
+    </div>
+    <div id="generate-message" style="padding: 12px; border-radius: 4px; margin-top: 15px; display: none;"></div>
+</div>
+
+<div class="card">
+    <h3>Engine QA Report</h3>
+    <pre style="background: #f5f5f5; padding: 12px; border-radius: 4px; font-size: 0.85em; max-height: 300px; overflow-y: auto;">{{ qa_report }}</pre>
+</div>
+
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Generate nowcast button
+document.getElementById('generate-btn').addEventListener('click', async function() {
+    const selected = [];
+    document.querySelectorAll('.month-select:checked').forEach(cb => {
+        const [year, month] = cb.value.split(',').map(Number);
+        selected.push([year, month]);
+    });
+
+    const msg = document.getElementById('generate-message');
+
+    if (selected.length === 0) {
+        msg.textContent = '❌ Please select at least one month';
+        msg.style.background = '#f8d7da';
+        msg.style.color = '#721c24';
+        msg.style.display = 'block';
+        return;
+    }
+
+    msg.textContent = '⏳ Generating nowcast...';
+    msg.style.background = '#d1ecf1';
+    msg.style.color = '#0c5460';
+    msg.style.display = 'block';
+
+    try {
+        const response = await fetch('/api/generate-nowcast', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({months: selected})
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            msg.textContent = `✓ ${data.message}`;
+            msg.style.background = '#d4edda';
+            msg.style.color = '#155724';
+            console.log('QA Report:', data.qa_report);
+        } else {
+            msg.textContent = `❌ ${data.message}`;
+            msg.style.background = '#f8d7da';
+            msg.style.color = '#721c24';
+        }
+    } catch (error) {
+        msg.textContent = `❌ Error: ${error.message}`;
+        msg.style.background = '#f8d7da';
+        msg.style.color = '#721c24';
+    }
+});
+</script>
+{% endblock %}

@@ -466,12 +466,20 @@
                         <option value="PHEV">PHEV</option>
                     </select>
                 </div>
-                <div class="control-group" id="forecastSeriesGroup" style="display: none;">
+                <div class="control-group" id="hpSubtypeGroup">
+                    <label for="hpSubtype">HP Type:</label>
+                    <select id="hpSubtype">
+                        <option value="Total">Total Heat Pumps</option>
+                        <option value="Domestic">Domestic Heat Pump</option>
+                        <option value="Hybrid">Hybrid Heat Pump</option>
+                    </select>
+                </div>
+                <div class="control-group" id="forecastSeriesGroup">
                     <label>Series:</label>
                     <label><input type="checkbox" id="showActual" checked> Actual</label>
                     <label><input type="checkbox" id="showDfes" checked> DFES</label>
-                    <label><input type="checkbox" id="showNesoHt" checked> UKPN — Holistic Transition before tRESP</label>
-                    <label><input type="checkbox" id="showNesoHtb" checked> UKPN — Holistic Transition Basic before tRESP</label>
+                    <label><input type="checkbox" id="showNesoHt" checked> <span id="seriesHtLabel">Holistic Transition</span></label>
+                    <label><input type="checkbox" id="showNesoHtb" checked> <span id="seriesHtbLabel">Holistic Transition Basic</span></label>
                 </div>
             </div>
 
@@ -480,6 +488,11 @@
 
             <!-- Charts -->
             <div class="charts-section">
+                <div class="chart-container" id="evCumulativeChartContainer" style="display: none;">
+                    <div class="chart-title" id="evCumulativeChartTitle">EV Cumulative Net Stock Additions Since March 2025</div>
+                    <div class="chart" id="evCumulativeChart"></div>
+                    <div class="chart-caveat" id="evCumulativeCaveat"></div>
+                </div>
                 <div class="chart-container">
                     <div class="chart-title" id="monthlyChartTitle">Monthly Uptake</div>
                     <div class="chart" id="monthlyChart"></div>
@@ -518,12 +531,23 @@
         let evLaIntegrationLoaded = false;
         let evLaepIntegrationLoaded = false;
         let evMetadata = { latest_actual_period: null, forecast_end_period: null };
+        let hpForecastDno = [];
+        let hpActualDno = [];
+        let hpForecastLa = [];
+        let hpActualLa = [];
+        let hpForecastLaep = [];
+        let hpActualLaep = [];
+        let hpIntegrationLoaded = false;
+        let hpLaIntegrationLoaded = false;
+        let hpLaepIntegrationLoaded = false;
+        let hpMetadata = { latest_actual_period: '2026-03' };
         let filteredData = [];
         let currentTech = 'Heat Pump';
         let currentArea = 'UKPN Total';
         let currentLa = null;
         let currentLaep = null;
         let currentEvSubtype = 'Total';
+        let currentHpSubtype = 'Total';
         let currentGeographyLevel = 'Network';
         let currentLsoa = null;
         let currentLsoaDnoFilter = 'All UKPN';
@@ -539,9 +563,16 @@
         let showNesoHtb = true;
         // Temporary demo display cap for EV charts only. Does not alter loaded forecast files.
         const EV_DEMO_DISPLAY_END_PERIOD = '2026-03';
+        // Existing HP visible window. Full HP forecast files still run to 2051-03.
+        const HP_DISPLAY_START_PERIOD = '2025-04';
+        const HP_DISPLAY_END_PERIOD = '2026-03';
 
         function evDemoDisplayRows(rows) {
             return rows.filter(d => d.period <= EV_DEMO_DISPLAY_END_PERIOD);
+        }
+
+        function hpDisplayRows(rows) {
+            return rows.filter(d => d.period >= HP_DISPLAY_START_PERIOD && d.period <= HP_DISPLAY_END_PERIOD);
         }
 
         // Data loading
@@ -551,10 +582,12 @@
                 document.getElementById('errorMessage').style.display = 'none';
 
                 // Load Stage 2F DNO CSV
+                console.log('Loading dashboard_comparison_dno_monthly.csv...');
                 const response = await fetch('./project/output_processed/dashboard_comparison_dno_monthly.csv');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status} for dashboard_comparison_dno_monthly.csv`);
 
                 const csv = await response.text();
+                console.log('Parsing CSV...');
                 const parsed = Papa.parse(csv, {
                     header: true,
                     dynamicTyping: true,
@@ -565,6 +598,7 @@
                     throw new Error(`CSV parsing error: ${parsed.errors[0].message}`);
                 }
 
+                console.log('Building stage data...');
                 stageData = parsed.data.map(row => ({
                     period: row.period,
                     tech_type: row.tech_type,
@@ -586,13 +620,15 @@
                 }));
 
                 await loadEvIntegrationNetwork();
+                await loadHpIntegrationNetwork();
 
                 document.getElementById('loadingMessage').style.display = 'none';
                 document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
 
                 updateDashboard();
             } catch (error) {
-                console.error('Data loading error:', error);
+                console.error('Data loading error:', error.message);
+                console.error('Full error:', error);
                 document.getElementById('loadingMessage').style.display = 'none';
                 document.getElementById('errorMessage').style.display = 'block';
                 document.getElementById('errorMessage').textContent = `Error loading dashboard: ${error.message}`;
@@ -770,13 +806,17 @@
         }
 
         async function loadEvIntegrationNetwork() {
+            console.log('Loading EV integration data...');
             const [forecastRes, actualRes, metaRes] = await Promise.all([
                 fetch('./project/output_processed/integration/monthly_forecast_dno.csv'),
                 fetch('./project/output_processed/integration/ev_actuals_dno.csv'),
                 fetch('./project/output_processed/integration/metadata.json')
             ]);
+            console.log(`EV integration responses: forecast=${forecastRes.ok}, actual=${actualRes.ok}, meta=${metaRes.ok}`);
             if (!forecastRes.ok || !actualRes.ok) {
-                throw new Error('EV integration files are missing. Run dashboard_integration first.');
+                const forecast_status = forecastRes.ok ? 'OK' : forecastRes.status;
+                const actual_status = actualRes.ok ? 'OK' : actualRes.status;
+                throw new Error(`EV integration files missing. Forecast: ${forecast_status}, Actual: ${actual_status}`);
             }
             evForecastDno = parseCsv(await forecastRes.text());
             evActualDno = parseCsv(await actualRes.text());
@@ -806,9 +846,59 @@
             evLaepIntegrationLoaded = true;
         }
 
+        async function loadHpIntegrationNetwork() {
+            const [forecastRes, actualRes, metaRes] = await Promise.all([
+                fetch('./project/output_processed/integration/hp_monthly_forecast_dno.csv'),
+                fetch('./project/output_processed/integration/hp_actuals_dno.csv'),
+                fetch('./project/output_processed/integration/hp_metadata.json')
+            ]);
+            if (!forecastRes.ok || !actualRes.ok) {
+                throw new Error(`HP integration files missing. Forecast: ${forecastRes.status}, Actual: ${actualRes.status}`);
+            }
+            hpForecastDno = parseCsv(await forecastRes.text());
+            hpActualDno = parseCsv(await actualRes.text());
+            if (metaRes.ok) hpMetadata = await metaRes.json();
+            hpIntegrationLoaded = true;
+        }
+
+        async function loadHpIntegrationLa() {
+            if (hpLaIntegrationLoaded) return;
+            const [forecastRes, actualRes] = await Promise.all([
+                fetch('./project/output_processed/integration/hp_monthly_forecast_la.csv'),
+                fetch('./project/output_processed/integration/hp_actuals_la.csv')
+            ]);
+            if (!forecastRes.ok || !actualRes.ok) {
+                throw new Error('HP LA integration files missing.');
+            }
+            hpForecastLa = parseCsv(await forecastRes.text());
+            hpActualLa = parseCsv(await actualRes.text());
+            hpLaIntegrationLoaded = true;
+        }
+
+        async function loadHpIntegrationLaep() {
+            if (hpLaepIntegrationLoaded) return;
+            const [forecastRes, actualRes] = await Promise.all([
+                fetch('./project/output_processed/integration/hp_monthly_forecast_laep.csv'),
+                fetch('./project/output_processed/integration/hp_actuals_laep.csv')
+            ]);
+            if (!forecastRes.ok || !actualRes.ok) {
+                throw new Error('HP LAEP integration files missing.');
+            }
+            hpForecastLaep = parseCsv(await forecastRes.text());
+            hpActualLaep = parseCsv(await actualRes.text());
+            hpLaepIntegrationLoaded = true;
+        }
+
         function evTypeMatch(evType) {
             if (currentEvSubtype === 'BEV' || currentEvSubtype === 'PHEV') return evType === currentEvSubtype;
             return evType === 'BEV' || evType === 'PHEV';
+        }
+
+        function hpTypeMatch(row) {
+            const bb = row.building_block_id;
+            if (currentHpSubtype === 'Domestic') return bb === 'Lct_BB005';
+            if (currentHpSubtype === 'Hybrid') return bb === 'Lct_BB006';
+            return bb === 'Lct_BB005' || bb === 'Lct_BB006';
         }
 
         function forecastSeriesKey(row) {
@@ -857,6 +947,48 @@
             return Object.values(byPeriod).sort((a, b) => a.period.localeCompare(b.period));
         }
 
+        function buildHpRows(actualRows, forecastRows) {
+            const byPeriod = {};
+            const ensure = (period) => {
+                if (!byPeriod[period]) {
+                    byPeriod[period] = {
+                        period,
+                        tech_type: 'Heat Pump',
+                        actual_install_count: null,
+                        actual_cumulative_count: 0,
+                        actual_total_kw: 0,
+                        actual_cumulative_kw: 0,
+                        dfes_opening_stock: 0,
+                        dfes_monthly_benchmark: null,
+                        neso_ht: null,
+                        neso_htb: null,
+                        comparison_point_type: null
+                    };
+                }
+                return byPeriod[period];
+            };
+            if (currentHpSubtype === 'Total') {
+                actualRows.forEach(row => {
+                    const rec = ensure(row.period);
+                    rec.actual_install_count = (rec.actual_install_count || 0) + (parseFloat(row.actual_install_count) || parseFloat(row.value) || 0);
+                    rec.actual_cumulative_count += parseFloat(row.actual_cumulative_count) || 0;
+                    rec.actual_total_kw += parseFloat(row.actual_total_kw) || 0;
+                    rec.actual_cumulative_kw += parseFloat(row.actual_cumulative_kw) || 0;
+                    rec.dfes_opening_stock += parseFloat(row.dfes_opening_stock) || 0;
+                    rec.comparison_point_type = 'Observation';
+                });
+            }
+            forecastRows.forEach(row => {
+                if (!hpTypeMatch(row)) return;
+                const key = forecastSeriesKey(row);
+                if (!key) return;
+                const rec = ensure(row.period);
+                const field = key === 'dfes' ? 'dfes_monthly_benchmark' : key;
+                rec[field] = (rec[field] || 0) + (parseFloat(row.value) || 0);
+            });
+            return Object.values(byPeriod).sort((a, b) => a.period.localeCompare(b.period));
+        }
+
         function filterIntegratedEvNetwork() {
             const dnos = currentArea === 'UKPN Total' ? ['EPN', 'LPN', 'SPN'] : [currentArea];
             const actuals = evActualDno.filter(r => dnos.includes(r.DNO) && evTypeMatch(r.EV_Type));
@@ -884,12 +1016,45 @@
             filteredData = buildEvRows(actuals, forecasts);
         }
 
+        function filterIntegratedHpNetwork() {
+            const dnos = currentArea === 'UKPN Total' ? ['EPN', 'LPN', 'SPN'] : [currentArea];
+            const actuals = hpActualDno.filter(r => dnos.includes(r.DNO));
+            const forecasts = hpForecastDno.filter(r => dnos.includes(r.DNO) && hpTypeMatch(r));
+            filteredData = buildHpRows(actuals, forecasts);
+        }
+
+        function filterIntegratedHpLa() {
+            if (!currentLa) {
+                filteredData = [];
+                return;
+            }
+            const actuals = hpActualLa.filter(r => r.LAD22CD === currentLa);
+            const forecasts = hpForecastLa.filter(r => r.LAD22CD === currentLa && hpTypeMatch(r));
+            filteredData = buildHpRows(actuals, forecasts);
+        }
+
+        function filterIntegratedHpLaep() {
+            if (!currentLaep) {
+                filteredData = [];
+                return;
+            }
+            const actuals = hpActualLaep.filter(r => r.LAEP === currentLaep);
+            const forecasts = hpForecastLaep.filter(r => r.LAEP === currentLaep && hpTypeMatch(r));
+            filteredData = buildHpRows(actuals, forecasts);
+        }
+
         // Filter and aggregate data
         function filterData() {
             if (currentTech === 'EV Vehicles' && currentGeographyLevel !== 'LSOA' && evIntegrationLoaded) {
                 if (currentGeographyLevel === 'LA') filterIntegratedEvLa();
                 else if (currentGeographyLevel === 'LAEP') filterIntegratedEvLaep();
                 else filterIntegratedEvNetwork();
+                return;
+            }
+            if (currentTech === 'Heat Pump' && currentGeographyLevel !== 'LSOA' && hpIntegrationLoaded) {
+                if (currentGeographyLevel === 'LA') filterIntegratedHpLa();
+                else if (currentGeographyLevel === 'LAEP') filterIntegratedHpLaep();
+                else filterIntegratedHpNetwork();
                 return;
             }
             if (currentGeographyLevel === 'LSOA') {
@@ -1428,30 +1593,40 @@
                 return;
             }
 
-            const lastMonth = filteredData[filteredData.length - 1];
+            const kpiRows = currentTech === 'Heat Pump' ? hpDisplayRows(filteredData) : filteredData;
+            const lastMonth = kpiRows[kpiRows.length - 1];
+            if (!lastMonth) {
+                container.innerHTML = '<div class="error">No data available for this selection</div>';
+                return;
+            }
             const kpis = [];
 
             if (currentTech === 'Heat Pump') {
+                const fyInstalls = lastMonth.actual_cumulative_count || 0;
+                const latestInstalls = lastMonth.actual_install_count || 0;
+                const dfesStart = filteredData.find(d => d.period === '2025-03');
+                const dfesEnd = filteredData.find(d => d.period === '2026-03');
+                const dfesFy = (dfesStart && dfesEnd && dfesStart.dfes_monthly_benchmark != null && dfesEnd.dfes_monthly_benchmark != null)
+                    ? (dfesEnd.dfes_monthly_benchmark - dfesStart.dfes_monthly_benchmark)
+                    : lastMonth.dfes_cumulative_benchmark;
                 kpis.push({
                     label: 'FY Installations',
-                    value: lastMonth.actual_cumulative_count.toLocaleString(),
+                    value: fyInstalls.toLocaleString(),
                     unit: 'units'
                 });
                 kpis.push({
                     label: 'Latest Month',
-                    value: lastMonth.actual_install_count.toLocaleString(),
+                    value: latestInstalls.toLocaleString(),
                     unit: `units (${lastMonth.period})`
                 });
                 kpis.push({
                     label: 'DFES FY Implied Uptake',
-                    value: lastMonth.dfes_cumulative_benchmark ? lastMonth.dfes_cumulative_benchmark.toLocaleString(undefined, {maximumFractionDigits: 0}) : '—',
+                    value: dfesFy != null ? dfesFy.toLocaleString(undefined, {maximumFractionDigits: 0}) : '—',
                     unit: 'units (annual)'
                 });
 
-                const comparison = lastMonth.dfes_cumulative_benchmark ?
-                    lastMonth.actual_cumulative_count - lastMonth.dfes_cumulative_benchmark : 0;
-                const pct = lastMonth.dfes_cumulative_benchmark ?
-                    (100 * lastMonth.actual_cumulative_count / lastMonth.dfes_cumulative_benchmark).toFixed(0) : '—';
+                const comparison = dfesFy ? fyInstalls - dfesFy : 0;
+                const pct = dfesFy ? (100 * fyInstalls / dfesFy).toFixed(0) : '—';
                 const status = comparison >= 0 ? 'ahead' : 'behind';
 
                 kpis.push({
@@ -1560,8 +1735,43 @@
             });
         }
 
+        function previousPeriod(period) {
+            const [year, month] = period.split('-').map(Number);
+            const prevMonth = month === 1 ? 12 : month - 1;
+            const prevYear = month === 1 ? year - 1 : year;
+            return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+        }
+
+        function fieldByPeriod(rows, field) {
+            const map = {};
+            rows.forEach(d => { map[d.period] = d[field]; });
+            return map;
+        }
+
+        function monthOnMonthValues(displayRows, allRows, field) {
+            const lookup = fieldByPeriod(allRows, field);
+            return displayRows.map(d => {
+                const cur = lookup[d.period];
+                const prev = lookup[previousPeriod(d.period)];
+                if (cur == null || prev == null) return null;
+                return cur - prev;
+            });
+        }
+
+        function hpForecastTraceName(kind) {
+            if (kind === 'ht') return 'Holistic Transition';
+            if (kind === 'htb') return 'Holistic Transition Basic';
+            return 'DFES';
+        }
+
         // Charts
         function updateCharts() {
+            if (currentTech === 'EV Vehicles') {
+                updateEvCumulativeChart();
+                document.getElementById('evCumulativeChartContainer').style.display = 'block';
+            } else {
+                document.getElementById('evCumulativeChartContainer').style.display = 'none';
+            }
             updateMonthlyChart();
             updateStockChart();
         }
@@ -1570,6 +1780,8 @@
             let monthlyData = filteredData.sort((a, b) => a.period.localeCompare(b.period));
             if (currentTech === 'EV Vehicles') {
                 monthlyData = evDemoDisplayRows(monthlyData);
+            } else if (currentTech === 'Heat Pump') {
+                monthlyData = hpDisplayRows(monthlyData);
             }
             const periods = monthlyData.map(d => d.period);
             const periodLabels = periods.map(p => {
@@ -1583,26 +1795,54 @@
 
             if (currentTech === 'Heat Pump') {
                 chartTitle = 'Monthly Heat Pump Installations';
-                actualTrace = {
-                    x: periodLabels,
-                    y: monthlyData.map(d => d.actual_install_count),
-                    name: 'Actual installations',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    line: { color: '#2196F3', width: 3 },
-                    marker: { size: 6 }
-                };
-                dfesTrace = {
-                    x: periodLabels,
-                    y: monthlyData.map(d => d.dfes_monthly_benchmark),
-                    name: 'DFES implied monthly uptake',
-                    type: 'scatter',
-                    mode: 'lines',
-                    line: { color: '#FF9800', width: 2, dash: 'dash' },
-                    marker: { size: 4 }
-                };
+                const hpTraces = [];
+                if (showActual) {
+                    hpTraces.push({
+                        x: periodLabels,
+                        y: monthlyData.map(d => d.actual_install_count),
+                        name: 'Actual',
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        connectgaps: false,
+                        line: { color: '#2196F3', width: 3 },
+                        marker: { size: 6 }
+                    });
+                }
+                if (showDfes) {
+                    hpTraces.push({
+                        x: periodLabels,
+                        y: monthOnMonthValues(monthlyData, filteredData, 'dfes_monthly_benchmark'),
+                        name: 'DFES',
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#FF9800', width: 2, dash: 'dash' }
+                    });
+                }
+                if (showNesoHt) {
+                    hpTraces.push({
+                        x: periodLabels,
+                        y: monthOnMonthValues(monthlyData, filteredData, 'neso_ht'),
+                        name: hpForecastTraceName('ht'),
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#1565C0', width: 2 }
+                    });
+                }
+                if (showNesoHtb) {
+                    hpTraces.push({
+                        x: periodLabels,
+                        y: monthOnMonthValues(monthlyData, filteredData, 'neso_htb'),
+                        name: hpForecastTraceName('htb'),
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#00838F', width: 2, dash: 'dot' }
+                    });
+                }
+                actualTrace = hpTraces[0] || { x: periodLabels, y: [], type: 'scatter', mode: 'lines', name: 'Actual' };
+                dfesTrace = null;
+                window._extraHpTraces = hpTraces.slice(1);
                 yAxisTitle = 'Installations';
-                document.getElementById('monthlyCaveat').textContent = 'DFES implied monthly uptake represents annual implied additions divided by 12, not a true monthly forecast.';
+                document.getElementById('monthlyCaveat').textContent = 'Actuals are monthly installations. DFES, Holistic Transition and Holistic Transition Basic monthly values are month-on-month changes in interpolated stock and are not rebased to actuals.';
 
             } else if (currentTech === 'Solar PV') {
                 chartTitle = 'Monthly Solar PV Capacity Added';
@@ -1698,6 +1938,9 @@
             if (currentTech === 'EV Vehicles' && window._extraEvTraces) {
                 traces = [actualTrace, ...window._extraEvTraces];
             }
+            if (currentTech === 'Heat Pump' && window._extraHpTraces) {
+                traces = [actualTrace, ...window._extraHpTraces];
+            }
 
             const xAxisTitle = currentTech === 'EV Vehicles' ? 'Period' : 'Month';
             const layout = {
@@ -1718,6 +1961,8 @@
             let stockData = filteredData.sort((a, b) => a.period.localeCompare(b.period));
             if (currentTech === 'EV Vehicles') {
                 stockData = evDemoDisplayRows(stockData);
+            } else if (currentTech === 'Heat Pump') {
+                stockData = hpDisplayRows(stockData);
             }
             const periods = stockData.map(d => d.period);
 
@@ -1725,30 +1970,55 @@
 
             if (currentTech === 'Heat Pump') {
                 chartTitle = 'Installed Stock Trajectory';
-                const openingStock = stockData[0]?.dfes_opening_stock || 0;
-
-                actualTrace = {
-                    x: periods,
-                    y: stockData.map(d => openingStock + d.actual_cumulative_count),
-                    name: 'Actual stock position',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    line: { color: '#2196F3', width: 3 },
-                    marker: { size: 6 },
-                    fill: 'tozeroy',
-                    fillcolor: 'rgba(33, 150, 243, 0.1)'
-                };
-                dfesTrace = {
-                    x: periods,
-                    y: stockData.map(d => d.dfes_opening_stock + d.dfes_cumulative_benchmark),
-                    name: 'DFES stock trajectory',
-                    type: 'scatter',
-                    mode: 'lines',
-                    line: { color: '#FF9800', width: 2, dash: 'dash' },
-                    marker: { size: 4 }
-                };
+                const openingStock = stockData.find(d => d.dfes_opening_stock)?.dfes_opening_stock || 0;
+                const hpTraces = [];
+                if (showActual) {
+                    hpTraces.push({
+                        x: periods,
+                        y: stockData.map(d => d.actual_cumulative_count != null && d.comparison_point_type === 'Observation' ? openingStock + d.actual_cumulative_count : null),
+                        name: 'Actual',
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        connectgaps: false,
+                        line: { color: '#2196F3', width: 3 },
+                        marker: { size: 6 }
+                    });
+                }
+                if (showDfes) {
+                    hpTraces.push({
+                        x: periods,
+                        y: stockData.map(d => d.dfes_monthly_benchmark),
+                        name: 'DFES',
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#FF9800', width: 2, dash: 'dash' }
+                    });
+                }
+                if (showNesoHt) {
+                    hpTraces.push({
+                        x: periods,
+                        y: stockData.map(d => d.neso_ht),
+                        name: hpForecastTraceName('ht'),
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#1565C0', width: 2 }
+                    });
+                }
+                if (showNesoHtb) {
+                    hpTraces.push({
+                        x: periods,
+                        y: stockData.map(d => d.neso_htb),
+                        name: hpForecastTraceName('htb'),
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: { color: '#00838F', width: 2, dash: 'dot' }
+                    });
+                }
+                actualTrace = hpTraces[0] || { x: periods, y: [], type: 'scatter', mode: 'lines', name: 'Actual' };
+                dfesTrace = null;
+                window._extraHpStockTraces = hpTraces.slice(1);
                 yAxisTitle = 'Installed Stock';
-                caveat = 'Actual stock position is built from opening stock plus cumulative monthly additions. DFES trajectory shows forecast stock growth.';
+                caveat = 'Actual stock is opening stock plus cumulative monthly additions. DFES, Holistic Transition and Holistic Transition Basic are independent interpolated stock trajectories and are not rebased to actuals.';
 
             } else if (currentTech === 'Solar PV') {
                 chartTitle = 'Installed Capacity Trajectory';
@@ -1857,6 +2127,9 @@
             if (currentTech === 'EV Vehicles' && window._extraEvStockTraces) {
                 traces = [actualTrace, ...window._extraEvStockTraces];
             }
+            if (currentTech === 'Heat Pump' && window._extraHpStockTraces) {
+                traces = [actualTrace, ...window._extraHpStockTraces];
+            }
 
             const layout = {
                 title: chartTitle,
@@ -1871,6 +2144,180 @@
             Plotly.newPlot('stockChart', traces, layout, { responsive: true });
             document.getElementById('stockChartTitle').textContent = getDisplayTitle(chartTitle);
             document.getElementById('stockCaveat').textContent = caveat;
+        }
+
+        function updateEvCumulativeChart() {
+            // Build EV integration data
+            let actualData = [], forecastData = [];
+
+            if (currentArea === 'UKPN Total') {
+                actualData = evActualDno.filter(r => ['EPN', 'LPN', 'SPN'].includes(r.DNO) && evTypeMatch(r.EV_Type));
+                forecastData = evForecastDno.filter(r => ['EPN', 'LPN', 'SPN'].includes(r.DNO) && evTypeMatch(r.EV_Type));
+            } else if (currentArea && currentArea !== 'UKPN Total') {
+                // LA level
+                actualData = evActualLa.filter(r => r.LA === currentLa && evTypeMatch(r.EV_Type));
+                forecastData = evForecastLa.filter(r => r.LA === currentLa && evTypeMatch(r.EV_Type));
+            }
+
+            const allRows = buildEvRows(actualData, forecastData);
+
+            // Find March 2025 baseline
+            const mar25 = allRows.find(r => r.period === '2025-03');
+            if (!mar25) {
+                document.getElementById('evCumulativeChart').innerHTML = '<p>No data available</p>';
+                return;
+            }
+
+            // Use DFES baseline anchor for estimated (locked methodology)
+            const baselines = {
+                estimated: mar25.dfes_monthly_benchmark,
+                dfes: mar25.dfes_monthly_benchmark,
+                ht: mar25.neso_ht,
+                htb: mar25.neso_htb
+            };
+
+            // Find latest actual observation
+            const latestActualPeriod = actualData.reduce((latest, row) => {
+                return row.period > latest ? row.period : latest;
+            }, '2025-03');
+
+            // Filter data from March 2025 to latest actual observation
+            const cumulativeData = allRows.filter(r => {
+                if (r.period < '2025-03') return false;
+                if (r.period > latestActualPeriod) return false;
+                return true;
+            }).sort((a, b) => a.period.localeCompare(b.period));
+
+            // Build observed series (quarterly only)
+            const observedX = [];
+            const observedY = [];
+            for (const row of cumulativeData) {
+                if (row.comparison_point_type === 'Observation') {
+                    const dateVal = `${row.period}-01`;
+                    if (row.period === '2025-03') {
+                        observedY.push(0);
+                    } else {
+                        observedY.push(row.actual_install_count - baselines.estimated);
+                    }
+                    observedX.push(dateVal);
+                }
+            }
+
+            // Build forecast series (monthly, all periods)
+            const dfesX = [];
+            const dfesY = [];
+            const htX = [];
+            const htY = [];
+            const htbX = [];
+            const htbY = [];
+
+            for (const row of cumulativeData) {
+                const dateVal = `${row.period}-01`;
+                dfesX.push(dateVal);
+                dfesY.push(row.dfes_monthly_benchmark - baselines.dfes);
+                htX.push(dateVal);
+                htY.push(row.neso_ht - baselines.ht);
+                htbX.push(dateVal);
+                htbY.push(row.neso_htb - baselines.htb);
+            }
+
+            const chartEndDate = `${latestActualPeriod}-01`;
+
+            // Create traces
+            const traces = [];
+
+            if (showActual && observedY.length > 0) {
+                traces.push({
+                    x: observedX,
+                    y: observedY,
+                    name: 'Observed cumulative additions',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    connectgaps: false,
+                    line: { color: '#9C27B0', width: 3, shape: 'linear' },
+                    marker: { size: 8 }
+                });
+            }
+
+            if (showDfes) {
+                traces.push({
+                    x: dfesX,
+                    y: dfesY,
+                    name: 'DFES cumulative additions',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    connectgaps: false,
+                    line: { color: '#FF9800', width: 2, dash: 'dash', shape: 'linear' },
+                    marker: { size: 6 }
+                });
+            }
+
+            if (showNesoHt) {
+                traces.push({
+                    x: htX,
+                    y: htY,
+                    name: 'HT cumulative additions',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    connectgaps: false,
+                    line: { color: '#1565C0', width: 2, shape: 'linear' },
+                    marker: { size: 6 }
+                });
+            }
+
+            if (showNesoHtb) {
+                traces.push({
+                    x: htbX,
+                    y: htbY,
+                    name: 'HTB cumulative additions',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    connectgaps: false,
+                    line: { color: '#00838F', width: 2, dash: 'dot', shape: 'linear' },
+                    marker: { size: 6 }
+                });
+            }
+
+            // Debug output for final Plotly data
+            console.log('=== EV CUMULATIVE CHART - FINAL PLOTLY DATA ===');
+            traces.forEach(trace => {
+                console.log(`Trace: ${trace.name}`);
+                console.log(`  x (first 3): ${JSON.stringify(trace.x.slice(0, 3))}`);
+                console.log(`  y (first 3): ${JSON.stringify(trace.y.slice(0, 3))}`);
+            });
+
+            const layout = {
+                title: '',
+                xaxis: {
+                    title: 'Period',
+                    type: 'date',
+                    tickformat: '%b %Y',
+                    range: ['2025-03-01', chartEndDate]
+                },
+                yaxis: { title: 'Cumulative Additions (Vehicles)' },
+                hovermode: 'x unified',
+                margin: { l: 60, r: 40, t: 40, b: 40 },
+                showlegend: true,
+                legend: { x: 0, y: -0.2, orientation: 'h' },
+                shapes: [
+                    {
+                        type: 'line',
+                        x0: '2025-03-01',
+                        x1: chartEndDate,
+                        xref: 'x',
+                        y0: 0,
+                        y1: 0,
+                        yref: 'y',
+                        line: { color: 'rgba(128, 128, 128, 0.5)', width: 1, dash: 'dash' }
+                    }
+                ]
+            };
+
+            console.log(`Layout xaxis.type: ${layout.xaxis.type}`);
+            console.log(`Layout xaxis.range: ${JSON.stringify(layout.xaxis.range)}`);
+
+            Plotly.newPlot('evCumulativeChart', traces, layout, { responsive: true });
+            document.getElementById('evCumulativeCaveat').textContent = 'EV stock observations are available quarterly. Cumulative net stock additions are measured relative to the 31 March 2025 baseline. The estimated series uses the DFES stock position at 31 March 2025 as its methodological anchor, followed by estimated quarter-end observations from June 2025. No monthly EV actuals are inferred. Forecast scenarios are shown relative to their respective 31 March 2025 stock positions.';
         }
 
         // LSOA Search functionality
@@ -1908,19 +2355,35 @@
             });
         }
 
+        function applyTechControls() {
+            const evSubtypeGroup = document.getElementById('evSubtypeGroup');
+            const hpSubtypeGroup = document.getElementById('hpSubtypeGroup');
+            const forecastSeriesGroup = document.getElementById('forecastSeriesGroup');
+            const htLabel = document.getElementById('seriesHtLabel');
+            const htbLabel = document.getElementById('seriesHtbLabel');
+            if (currentTech === 'EV Vehicles') {
+                evSubtypeGroup.style.display = 'flex';
+                hpSubtypeGroup.style.display = 'none';
+                forecastSeriesGroup.style.display = 'flex';
+                htLabel.textContent = 'UKPN — Holistic Transition before tRESP';
+                htbLabel.textContent = 'UKPN — Holistic Transition Basic before tRESP';
+            } else if (currentTech === 'Heat Pump') {
+                evSubtypeGroup.style.display = 'none';
+                hpSubtypeGroup.style.display = 'flex';
+                forecastSeriesGroup.style.display = 'flex';
+                htLabel.textContent = 'Holistic Transition';
+                htbLabel.textContent = 'Holistic Transition Basic';
+            } else {
+                evSubtypeGroup.style.display = 'none';
+                hpSubtypeGroup.style.display = 'none';
+                forecastSeriesGroup.style.display = 'none';
+            }
+        }
+
         // Event handlers
         document.getElementById('technology').addEventListener('change', (e) => {
             currentTech = e.target.value;
-            // Show/hide EV subtype control
-            const evSubtypeGroup = document.getElementById('evSubtypeGroup');
-            const forecastSeriesGroup = document.getElementById('forecastSeriesGroup');
-            if (currentTech === 'EV Vehicles') {
-                evSubtypeGroup.style.display = 'flex';
-                forecastSeriesGroup.style.display = 'flex';
-            } else {
-                evSubtypeGroup.style.display = 'none';
-                forecastSeriesGroup.style.display = 'none';
-            }
+            applyTechControls();
             updateDashboard();
         });
 
@@ -1948,6 +2411,7 @@
                         await loadLaData();
                     }
                     await loadEvIntegrationLa();
+                    await loadHpIntegrationLa();
                     document.getElementById('laSearch').value = '';
                 } else if (currentGeographyLevel === 'LAEP') {
                     document.getElementById('licenceAreaGroup').style.display = 'none';
@@ -1960,6 +2424,7 @@
                         await loadLaepData();
                     }
                     await loadEvIntegrationLaep();
+                    await loadHpIntegrationLaep();
                 } else if (currentGeographyLevel === 'Network') {
                     document.getElementById('licenceAreaGroup').style.display = 'flex';
                     document.getElementById('laSearchGroup').style.display = 'none';
@@ -2044,6 +2509,11 @@
             updateDashboard();
         });
 
+        document.getElementById('hpSubtype').addEventListener('change', (e) => {
+            currentHpSubtype = e.target.value;
+            updateDashboard();
+        });
+
         ['showActual', 'showDfes', 'showNesoHt', 'showNesoHtb'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
                 showActual = document.getElementById('showActual').checked;
@@ -2055,6 +2525,7 @@
         });
 
         // Initialize
+        applyTechControls();
         loadData();
     </script>
 </body>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rollback — LCT Data Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .section h2 { font-size: 16px; margin-bottom: 15px; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        .backup-card { padding: 15px; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+        .backup-card:hover { border-color: #0066cc; background: #f9f9f9; }
+        .backup-card.selected { border-color: #0066cc; background: #e6f2ff; }
+        .backup-info { display: grid; grid-template-columns: 1fr 2fr; gap: 15px; }
+        .backup-date { font-weight: 600; font-size: 14px; }
+        .backup-vintage { font-size: 12px; color: #666; }
+        .backup-id { font-size: 11px; color: #999; font-family: monospace; }
+        .current-prod { background: #fff9e6; border-left: 4px solid #ff9900; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .button { padding: 10px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .button-primary { background: #0066cc; color: white; }
+        .button-primary:hover { background: #0052a3; }
+        .button-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .button-secondary { background: #f0f0f0; color: #333; }
+        .button-secondary:hover { background: #e0e0e0; }
+        .button-group { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; z-index: 1000; }
+        .modal-backdrop.active { display: block; }
+        .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 1001; width: 90%; max-width: 500px; display: none; }
+        .modal.active { display: block; }
+        .modal h2 { margin-bottom: 15px; }
+        .modal p { margin: 10px 0; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Rollback to Previous Version</h1>
+            <p>Select a previous production backup to restore</p>
+        </div>
+
+        <div class="section">
+            <div class="current-prod">
+                <strong>Current Production:</strong> Q2 2026 (30 June 2026)<br>
+                Last promoted: 30 September 2026 14:32
+            </div>
+
+            <h2>Available Previous Versions</h2>
+            <div id="backupList">
+                {% for backup in backups %}
+                <div class="backup-card" onclick="selectBackup(this, '{{ backup.backup_id }}')">
+                    <div class="backup-info">
+                        <div>
+                            <div class="backup-date">Q1 2026 — 31 March 2026</div>
+                            <div class="backup-vintage">Promoted: {{ backup.timestamp }}</div>
+                            <div class="backup-id">{{ backup.backup_id }}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <button class="button button-secondary" onclick="showRollbackConfirm(event, '{{ backup.backup_id }}')">ROLLBACK</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if not backups %}
+            <p style="color: #666; padding: 20px; text-align: center;">No previous backups available.</p>
+            {% endif %}
+
+            <div class="button-group" style="margin-top: 20px;">
+                <button class="button button-secondary" onclick="location.href='/'">RETURN</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="confirmBackdrop"></div>
+    <div class="modal" id="confirmModal">
+        <h2>Confirm Rollback</h2>
+        <p>Restore to Q1 2026 (31 March 2026)?</p>
+        <p style="font-size: 12px; color: #999;">Current production will be backed up first.</p>
+        <div class="button-group" style="justify-content: center; margin-top: 15px;">
+            <button class="button button-primary" onclick="executeRollback()">CONFIRM ROLLBACK</button>
+            <button class="button button-secondary" onclick="closeConfirm()">CANCEL</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedBackupId = null;
+
+        function selectBackup(element, backupId) {
+            document.querySelectorAll('.backup-card').forEach(e => e.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedBackupId = backupId;
+        }
+
+        function showRollbackConfirm(event, backupId) {
+            event.stopPropagation();
+            selectedBackupId = backupId;
+            document.getElementById('confirmBackdrop').classList.add('active');
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function closeConfirm() {
+            document.getElementById('confirmBackdrop').classList.remove('active');
+            document.getElementById('confirmModal').classList.remove('active');
+        }
+
+        function executeRollback() {
+            fetch('/api/rollback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ backup_id: selectedBackupId })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Rollback successful: ' + data.message);
+                    location.href = '/promotion-history';
+                } else {
+                    alert('Rollback failed: ' + data.message);
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+    </script>
+</body>
+</html>

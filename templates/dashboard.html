@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - LCT Data Manager{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <h2>📊 Current EV State</h2>
+
+    <div class="info-row">
+        <span class="info-label">Latest Authoritative DfT Quarter:</span>
+        <span class="info-value">
+            {% if state.latest_dft_quarter %}
+                <strong>{{ state.latest_dft_quarter }}</strong>
+                <span class="status-badge status-ok">DETECTED</span>
+            {% else %}
+                <span class="status-badge status-error">NOT DETECTED</span>
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">Latest EV Period in Dashboard:</span>
+        <span class="info-value">
+            {% if state.latest_ev_period %}
+                <strong>{{ state.latest_ev_period }}</strong>
+            {% else %}
+                <span class="status-badge status-error">NO DATA</span>
+            {% endif %}
+        </span>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📁 DfT Source Tables</h2>
+
+    {% set all_present = state.dft_tables_present.values() | list | sum == 4 %}
+
+    {% for table, present in state.dft_tables_present.items() %}
+        <div class="info-row">
+            <span class="info-label">{{ table }}</span>
+            <span class="info-value">
+                {% if present %}
+                    <span class="status-badge status-ok">✓ Present</span>
+                {% else %}
+                    <span class="status-badge status-error">✗ Missing</span>
+                {% endif %}
+            </span>
+        </div>
+    {% endfor %}
+
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #f0f0f0;">
+        <strong>Status:</strong>
+        {% if all_present %}
+            <span class="status-badge status-ok">ALL TABLES PRESENT</span>
+        {% else %}
+            <span class="status-badge status-error">MISSING TABLES</span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h2>📤 EV Processing Outputs</h2>
+
+    {% set outputs_ok = state.ev_outputs_exist.values() | list | sum > 0 %}
+
+    {% for output, exists in state.ev_outputs_exist.items() %}
+        <div class="info-row">
+            <span class="info-label">{{ output }}</span>
+            <span class="info-value">
+                {% if exists %}
+                    <span class="status-badge status-ok">✓ Exists</span>
+                {% else %}
+                    <span class="status-badge status-error">✗ Missing</span>
+                {% endif %}
+            </span>
+        </div>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <h2>🔧 Phase 1 Status</h2>
+
+    <div class="info-row">
+        <span class="info-label">Database:</span>
+        <span class="info-value">
+            <span class="status-badge status-ok">✓ Initialized</span>
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">DfT Detection:</span>
+        <span class="info-value">
+            {% if state.latest_dft_quarter %}
+                <span class="status-badge status-ok">✓ Working</span>
+            {% else %}
+                <span class="status-badge status-error">✗ Failed</span>
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="info-row">
+        <span class="info-label">Web Interface:</span>
+        <span class="info-value">
+            <span class="status-badge status-ok">✓ Active</span>
+        </span>
+    </div>
+
+    <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+        <strong>Next Steps (Phase 2):</strong>
+        <ul style="margin-top: 10px; margin-left: 20px;">
+            <li>SMMT monthly input form</li>
+            <li>SMMT history tracking</li>
+            <li>Database persistence for SMMT entries</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📋 Processing History</h2>
+    <p id="history-loading">Loading...</p>
+    <div id="history-content"></div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadProcessingHistory() {
+    try {
+        const response = await fetch('/api/processing-history');
+        const records = await response.json();
+
+        const container = document.getElementById('history-content');
+        const loading = document.getElementById('history-loading');
+
+        if (records.length === 0) {
+            container.innerHTML = '<p style="color: #999;">No processing history yet.</p>';
+        } else {
+            let html = '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="background: #f5f5f5; border-bottom: 1px solid #ddd;"><th style="padding: 10px; text-align: left;">Operation</th><th style="padding: 10px; text-align: left;">Status</th><th style="padding: 10px; text-align: left;">Date</th></tr>';
+
+            records.forEach(record => {
+                const date = new Date(record.performed_at).toLocaleString();
+                const statusClass = record.status === 'SUCCESS' ? 'status-ok' : 'status-error';
+                html += `<tr style="border-bottom: 1px solid #f0f0f0;">
+                    <td style="padding: 10px;">${record.operation}</td>
+                    <td style="padding: 10px;"><span class="status-badge ${statusClass}">${record.status}</span></td>
+                    <td style="padding: 10px;">${date}</td>
+                </tr>`;
+            });
+
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        loading.style.display = 'none';
+    } catch (error) {
+        document.getElementById('history-loading').textContent = 'Error loading history';
+        console.error('Error:', error);
+    }
+}
+
+// Load history on page load
+document.addEventListener('DOMContentLoaded', loadProcessingHistory);
+</script>
+{% endblock %}

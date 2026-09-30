@@ -1,0 +1,11 @@
+{
+  "generated_at": "2026-09-25T15:35:11.050034",
+  "latest_actual_period": "2026-03",
+  "forecast_start_period": "2025-03",
+  "forecast_end_period": "2051-03",
+  "neso_horizon_years": "2024-2050",
+  "dfes_horizon_years": "2024-2050",
+  "neso_anchor_dates": "2025-03-31 to 2051-03-31",
+  "ht_outputs_untouched": true,
+  "qa_pass": true
+}

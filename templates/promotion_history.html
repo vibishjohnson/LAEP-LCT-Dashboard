@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promotion History — LCT Data Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .section h2 { font-size: 16px; margin-bottom: 15px; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { background: #f9f9f9; font-weight: 600; font-size: 13px; }
+        td { font-size: 13px; }
+        .event-promotion { background: #e6ffe6; border-left: 3px solid #009900; padding: 2px 6px; border-radius: 2px; font-weight: 600; color: #003300; }
+        .event-rollback { background: #fff5e6; border-left: 3px solid #ff9900; padding: 2px 6px; border-radius: 2px; font-weight: 600; color: #663300; }
+        .status-success { color: #009900; font-weight: 600; }
+        .status-failed { color: #cc0000; font-weight: 600; }
+        .button { padding: 10px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; font-weight: 600; }
+        .button-secondary { background: #f0f0f0; color: #333; }
+        .button-secondary:hover { background: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Production History</h1>
+            <p>Record of all promotions and rollbacks</p>
+        </div>
+
+        <div class="section">
+            <h2>Promotion Events</h2>
+            <table>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Event</th>
+                    <th>Old Vintage</th>
+                    <th>New Vintage</th>
+                    <th>Run/Backup ID</th>
+                    <th>Result</th>
+                </tr>
+                {% for record in history %}
+                <tr>
+                    <td>{{ record.timestamp }}</td>
+                    <td>
+                        {% if record.event == 'PROMOTION' %}
+                        <span class="event-promotion">PROMOTION</span>
+                        {% elif record.event == 'ROLLBACK' %}
+                        <span class="event-rollback">ROLLBACK</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ record.old_vintage or '-' }}</td>
+                    <td>{{ record.new_vintage or record.restore_from_backup or '-' }}</td>
+                    <td style="font-family: monospace; font-size: 11px;">{{ record.run_id or record.backup_id or '-' }}</td>
+                    <td><span class="status-success">{{ record.result }}</span></td>
+                </tr>
+                {% endfor %}
+            </table>
+
+            {% if not history %}
+            <p style="padding: 20px; text-align: center; color: #666;">No promotion or rollback events recorded.</p>
+            {% endif %}
+
+            <div style="margin-top: 20px;">
+                <button class="button button-secondary" onclick="location.href='/'">RETURN</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -211,7 +211,8 @@ for dno in ['EPN', 'LPN', 'SPN']:
             'capacity_unknown_count': 0.0,
             'capacity_coverage_pct': 0.0,
             'dfes_opening_stock': hp_apr.get(dno, 0),
-            'dfes_closing_stock': hp_mar.get(dno, 0)
+            'dfes_closing_stock': hp_mar.get(dno, 0),
+            'comparison_point_type': None
         })
 
 print(f"Heat Pump benchmarks added: {len([r for r in comparison_rows if r['tech_type'] == 'Heat Pump']):,} rows")
@@ -268,7 +269,8 @@ for dno in ['EPN', 'LPN', 'SPN']:
             'capacity_unknown_count': capacity_unknown,
             'capacity_coverage_pct': capacity_coverage,
             'dfes_opening_stock': pv_apr.get(dno, 0),
-            'dfes_closing_stock': pv_mar.get(dno, 0)
+            'dfes_closing_stock': pv_mar.get(dno, 0),
+            'comparison_point_type': None
         })
 
 print(f"Solar PV benchmarks added: {len([r for r in comparison_rows if r['tech_type'] == 'Solar PV']):,} rows")
@@ -310,7 +312,8 @@ for dno in ['EPN', 'LPN', 'SPN']:
             'capacity_unknown_count': None,
             'capacity_coverage_pct': None,
             'dfes_opening_stock': None,
-            'dfes_closing_stock': None
+            'dfes_closing_stock': None,
+            'comparison_point_type': None
         })
 
 print(f"EV Charger records added: {len([r for r in comparison_rows if r['tech_type'] == 'EV Charger']):,} rows")
@@ -396,7 +399,7 @@ for dno in ['EPN', 'LPN', 'SPN']:
             ]
             dfes_value = dfes_period_row['forecast_value'].values[0] if len(dfes_period_row) > 0 else None
 
-            # Calculate variance and variance_pct
+            # Calculate variance and variance_pct (raw actual vs DFES forecast)
             variance = None
             variance_pct = None
             if actual_count is not None and dfes_value is not None and dfes_value != 0:
@@ -422,10 +425,51 @@ for dno in ['EPN', 'LPN', 'SPN']:
                 'dfes_opening_stock': dfes_opening,
                 'dfes_closing_stock': dfes_closing,
                 'variance': variance,
-                'variance_pct': variance_pct
+                'variance_pct': variance_pct,
+                'comparison_point_type': 'Observation'
             })
 
 print(f"EV Vehicle records added: {len([r for r in comparison_rows if r['tech_type'] == 'EV']):,} rows")
+
+# Add EV March 2025 DFES baseline rows
+print("\nAdding EV March 2025 DFES baseline rows...")
+ev_april = ev_forecast_dno[ev_forecast_dno['period'] == '2025-04'].copy()
+ev_april_by_dno_type = ev_april.set_index(['DNO', 'EV_Type'])['forecast_value'].to_dict()
+
+for dno in ['EPN', 'LPN', 'SPN']:
+    for ev_type in ['BEV', 'PHEV']:
+        baseline_val = ev_april_by_dno_type.get((dno, ev_type))
+        if baseline_val is not None:
+            # Derive opening/closing stocks for this DNO × EV_Type
+            ev_apr_row = ev_apr_dno[(ev_apr_dno['DNO'] == dno) & (ev_apr_dno['EV_Type'] == ev_type)]
+            ev_mar_row = ev_mar_dno[(ev_mar_dno['DNO'] == dno) & (ev_mar_dno['EV_Type'] == ev_type)]
+            dfes_opening = ev_apr_row['forecast_value'].values[0] if len(ev_apr_row) > 0 else None
+            dfes_closing = ev_mar_row['forecast_value'].values[0] if len(ev_mar_row) > 0 else None
+
+            comparison_rows.append({
+                'period': '2025-03',
+                'tech_type': 'EV',
+                'DNO': dno,
+                'EV_Type': ev_type,
+                'actual_install_count': None,
+                'actual_total_kw': None,
+                'actual_cumulative_count': None,
+                'actual_cumulative_kw': None,
+                'dfes_monthly_benchmark': baseline_val,
+                'dfes_cumulative_benchmark': baseline_val,
+                'dfes_scenario': 'HolisticTransition',
+                'comparison_unit': 'Vehicle stock',
+                'capacity_known_count': None,
+                'capacity_unknown_count': None,
+                'capacity_coverage_pct': None,
+                'dfes_opening_stock': dfes_opening,
+                'dfes_closing_stock': dfes_closing,
+                'variance': None,
+                'variance_pct': None,
+                'comparison_point_type': 'DFES baseline'
+            })
+
+print(f"EV baseline rows added: {len([r for r in comparison_rows if r['comparison_point_type'] == 'DFES baseline']):,} rows")
 
 # ============================================================================
 # STEP 4: BUILD OUTPUT DATAFRAME
