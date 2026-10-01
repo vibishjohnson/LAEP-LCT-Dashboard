@@ -2208,6 +2208,11 @@
                 legend: { x: 0, y: -0.2, orientation: 'h' }
             };
 
+            if (currentTech === 'EV Vehicles') {
+                console.log("Stock chart final layout xaxisConfig:", JSON.stringify(xaxisConfig));
+                console.log("Stock chart final layout.xaxis.range:", JSON.stringify(layout.xaxis.range));
+            }
+
             Plotly.newPlot('stockChart', traces, layout, { responsive: true });
             document.getElementById('stockChartTitle').textContent = getDisplayTitle(chartTitle);
             document.getElementById('stockCaveat').textContent = caveat;
