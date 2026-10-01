@@ -903,6 +903,7 @@
 
         function forecastSeriesKey(row) {
             if (row.forecast_source === 'DFES') return 'dfes';
+            if (row.forecast_source === 'SMMT_NOWCAST') return 'smmt';
             if (row.forecast_source === 'NESO' && row.forecast_scenario === 'HolisticTransition') return 'neso_ht';
             if (row.forecast_source === 'NESO' && row.forecast_scenario === 'HolisticTransitionBasic') return 'neso_htb';
             return null;
@@ -917,6 +918,7 @@
                         tech_type: 'EV',
                         actual_install_count: null,
                         dfes_monthly_benchmark: null,
+                        smmt: null,
                         neso_ht: null,
                         neso_htb: null,
                         comparison_point_type: null,
@@ -928,7 +930,8 @@
             };
             actualRows.forEach(row => {
                 const rec = ensure(row.period);
-                rec.actual_install_count = (rec.actual_install_count || 0) + (parseFloat(row.value) || 0);
+                const actualVal = parseFloat(row.install_count) || parseFloat(row.value) || 0;
+                rec.actual_install_count = (rec.actual_install_count || 0) + actualVal;
                 rec.comparison_point_type = 'Observation';
             });
             forecastRows.forEach(row => {
@@ -2168,9 +2171,9 @@
                 return;
             }
 
-            // Use DFES baseline anchor for estimated (locked methodology)
+            // Use March 2025 actual observation as baseline for observed cumulative additions
             const baselines = {
-                estimated: mar25.dfes_monthly_benchmark,
+                estimated: mar25.actual_install_count,
                 dfes: mar25.dfes_monthly_benchmark,
                 ht: mar25.neso_ht,
                 htb: mar25.neso_htb
@@ -2181,10 +2184,14 @@
                 return row.period > latest ? row.period : latest;
             }, '2025-03');
 
-            // Filter data from March 2025 to latest actual observation
+            // Filter data from March 2025 onwards (include forecasts beyond latest actual)
+            const latestForecastPeriod = Math.max(
+                ...allRows.filter(r => r.dfes_monthly_benchmark !== null || r.neso_ht !== null).map(r => r.period)
+            ) || latestActualPeriod;
+
             const cumulativeData = allRows.filter(r => {
                 if (r.period < '2025-03') return false;
-                if (r.period > latestActualPeriod) return false;
+                if (r.period > latestForecastPeriod) return false;
                 return true;
             }).sort((a, b) => a.period.localeCompare(b.period));
 
@@ -2206,6 +2213,8 @@
             // Build forecast series (monthly, all periods)
             const dfesX = [];
             const dfesY = [];
+            const smtmX = [];
+            const smtmY = [];
             const htX = [];
             const htY = [];
             const htbX = [];
@@ -2214,7 +2223,11 @@
             for (const row of cumulativeData) {
                 const dateVal = `${row.period}-01`;
                 dfesX.push(dateVal);
-                dfesY.push(row.dfes_monthly_benchmark - baselines.dfes);
+                dfesY.push(row.dfes_monthly_benchmark ? row.dfes_monthly_benchmark - baselines.dfes : null);
+                if (row.smmt !== null) {
+                    smtmX.push(dateVal);
+                    smtmY.push(row.smmt - baselines.estimated);
+                }
                 htX.push(dateVal);
                 htY.push(row.neso_ht - baselines.ht);
                 htbX.push(dateVal);
@@ -2236,6 +2249,19 @@
                     connectgaps: false,
                     line: { color: '#9C27B0', width: 3, shape: 'linear' },
                     marker: { size: 8 }
+                });
+            }
+
+            if (smtmY.length > 0) {
+                traces.push({
+                    x: smtmX,
+                    y: smtmY,
+                    name: 'SMMT Nowcast cumulative additions',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    connectgaps: false,
+                    line: { color: '#4CAF50', width: 2, dash: 'dot', shape: 'linear' },
+                    marker: { size: 6 }
                 });
             }
 
