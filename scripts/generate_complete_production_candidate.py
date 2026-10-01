@@ -154,9 +154,9 @@ monthly_forecast = pd.read_csv(os.path.join(PROD_INPUT, "integration", "monthly_
 dfes_forecast = pd.read_csv(os.path.join(PROD_INPUT, "dfes_ev_forecast_all.csv"))
 dfes_forecast_apr_plus = dfes_forecast[dfes_forecast['period'] >= '2026-04'].copy()
 
-# Filter to only HolisticTransition scenario (which maps to DFES "High")
+# Filter to only High scenario (which we'll rename to HolisticTransition for dashboard)
 # The dashboard expects DFES forecast_source with HolisticTransition scenario
-dfes_forecast_apr_plus = dfes_forecast_apr_plus[dfes_forecast_apr_plus['Scenario'] == 'HolisticTransition'].copy()
+dfes_forecast_apr_plus = dfes_forecast_apr_plus[dfes_forecast_apr_plus['Scenario'] == 'High'].copy()
 
 # First map vehicle_type to BEV/PHEV, then aggregate
 dfes_forecast_apr_plus['EV_Type'] = dfes_forecast_apr_plus['vehicle_type'].apply(lambda x: 'PHEV' if 'PHEV' in str(x).upper() else 'BEV')
@@ -171,7 +171,7 @@ for _, row in dfes_agg.iterrows():
         'tech_type': 'EV',
         'EV_Type': row['EV_Type'],
         'forecast_source': 'DFES',
-        'forecast_scenario': row['Scenario'],
+        'forecast_scenario': 'HolisticTransition',  # Map DFES "High" to HolisticTransition for dashboard
         'dfes_pathway': 'Combined',
         'building_block_id': None,
         'metric': 'stock',
