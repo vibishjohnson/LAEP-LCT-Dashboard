@@ -562,15 +562,48 @@
         let showNesoHt = true;
         let showNesoHtb = true;
         // Temporary demo display cap for EV charts only. Does not alter loaded forecast files.
-        // EV chart range: March 2025 through August 2026 (includes SMMT nowcast)
-        const EV_DEMO_DISPLAY_START_PERIOD = '2025-03';
-        const EV_DEMO_DISPLAY_END_PERIOD = '2026-08';
-        // Existing HP visible window. Full HP forecast files still run to 2051-03.
+        // EV chart window: March 2025 through latest observed/provisional data
+        const EV_DISPLAY_START = '2025-03-01';
+
+        // Helper: Calculate EV display range dynamically
+        function getEvDisplayRange(allRows) {
+            // Find latest DfT actual and SMMT nowcast period
+            const dfesActuals = allRows.filter(r => r.comparison_point_type === 'Observation');
+            const smtmData = allRows.filter(r => r.smmt !== null && r.smmt !== undefined);
+
+            const latestDfT = dfesActuals.length > 0
+                ? Math.max(...dfesActuals.map(r => new Date(r.period + '-01')))
+                : new Date('2025-03-01');
+            const latestSmmt = smtmData.length > 0
+                ? Math.max(...smtmData.map(r => new Date(r.period + '-01')))
+                : latestDfT;
+
+            const latestObserved = new Date(Math.max(latestDfT, latestSmmt));
+
+            // Format as YYYY-MM-DD (end of month)
+            const year = latestObserved.getFullYear();
+            const month = String(latestObserved.getMonth() + 1).padStart(2, '0');
+            const endDate = `${year}-${month}-`;
+
+            // Determine end date (last day of month)
+            const nextMonth = new Date(year, latestObserved.getMonth() + 1, 1);
+            const lastDay = new Date(nextMonth - 1).getDate();
+
+            return {
+                start: EV_DISPLAY_START,
+                end: endDate + String(lastDay).padStart(2, '0')
+            };
+        }
+
+        // Existing HP visible window
         const HP_DISPLAY_START_PERIOD = '2025-04';
         const HP_DISPLAY_END_PERIOD = '2026-03';
 
         function evDemoDisplayRows(rows) {
-            return rows.filter(d => d.period >= EV_DEMO_DISPLAY_START_PERIOD && d.period <= EV_DEMO_DISPLAY_END_PERIOD);
+            // Filter EV data to start/end periods
+            // End period is calculated dynamically
+            const range = getEvDisplayRange(rows);
+            return rows.filter(d => d.period >= '2025-03' && d.period <= range.end.substring(0, 7));
         }
 
         function hpDisplayRows(rows) {
@@ -2136,11 +2169,14 @@
                 traces = [actualTrace, ...window._extraHpStockTraces];
             }
 
-            // For EV charts, use fixed x-axis range: March 2025 through August 2026
+            // For EV charts, use dynamic x-axis range based on latest observed/provisional data
             const xaxisConfig = { title: currentTech === 'EV Vehicles' ? 'Period' : 'Month' };
             if (currentTech === 'EV Vehicles') {
+                const evRange = getEvDisplayRange(filteredData);
                 xaxisConfig.type = 'date';
-                xaxisConfig.range = ['2025-03-01', '2026-08-31'];
+                xaxisConfig.range = [evRange.start, evRange.end];
+                xaxisConfig.tick0 = evRange.start;
+                xaxisConfig.dtick = 'M3';  // Quarterly ticks
             }
 
             const layout = {
@@ -2260,7 +2296,23 @@
                 htbY.push(row.neso_htb - baselines.htb);
             }
 
-            const chartEndDate = `${latestActualPeriod}-01`;
+            // Calculate latest observed period (max of DfT actual and SMMT)
+            const latestSmtmPeriod = smtmData.length > 0
+                ? Math.max(...smtmData.filter(r => r.smmt !== null).map(r => r.period))
+                : latestActualPeriod;
+            const latestObservedPeriod = Math.max(latestActualPeriod, latestSmtmPeriod);
+            const chartEndDate = `${latestObservedPeriod}-01`;
+
+            // Clip forecast lines to latest observed/provisional period
+            // DFES, HT, HTB should not extend beyond latest actual/SMMT data
+            const maxObservedIndex = dfesX.findIndex(d => d > chartEndDate);
+            const clipIndex = maxObservedIndex > -1 ? maxObservedIndex : dfesX.length;
+            const dfesXClipped = dfesX.slice(0, clipIndex);
+            const dfesYClipped = dfesY.slice(0, clipIndex);
+            const htXClipped = htX.slice(0, clipIndex);
+            const htYClipped = htY.slice(0, clipIndex);
+            const htbXClipped = htbX.slice(0, clipIndex);
+            const htbYClipped = htbY.slice(0, clipIndex);
 
             // Create traces
             const traces = [];
@@ -2293,8 +2345,8 @@
 
             if (showDfes) {
                 traces.push({
-                    x: dfesX,
-                    y: dfesY,
+                    x: dfesXClipped,
+                    y: dfesYClipped,
                     name: 'DFES cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2306,8 +2358,8 @@
 
             if (showNesoHt) {
                 traces.push({
-                    x: htX,
-                    y: htY,
+                    x: htXClipped,
+                    y: htYClipped,
                     name: 'HT cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2319,8 +2371,8 @@
 
             if (showNesoHtb) {
                 traces.push({
-                    x: htbX,
-                    y: htbY,
+                    x: htbXClipped,
+                    y: htbYClipped,
                     name: 'HTB cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2338,8 +2390,8 @@
                 console.log(`  y (first 3): ${JSON.stringify(trace.y.slice(0, 3))}`);
             });
 
-            // Ensure cumulative chart extends through August 2026 for SMMT display
-            const cumulativeChartEnd = chartEndDate < '2026-08-31' ? '2026-08-31' : chartEndDate;
+            // Use dynamic EV display range
+            const evCumulativeRange = getEvDisplayRange(allRows);
 
             const layout = {
                 title: '',
@@ -2347,7 +2399,9 @@
                     title: 'Period',
                     type: 'date',
                     tickformat: '%b %Y',
-                    range: ['2025-03-01', cumulativeChartEnd]
+                    range: [evCumulativeRange.start, evCumulativeRange.end],
+                    tick0: evCumulativeRange.start,
+                    dtick: 'M3'
                 },
                 yaxis: { title: 'Cumulative Additions (Vehicles)' },
                 hovermode: 'x unified',
