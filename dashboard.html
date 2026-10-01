@@ -2134,9 +2134,17 @@
                 traces = [actualTrace, ...window._extraHpStockTraces];
             }
 
+            // For EV charts, start x-axis at March 2025
+            const xaxisConfig = { title: currentTech === 'EV Vehicles' ? 'Period' : 'Month' };
+            if (currentTech === 'EV Vehicles') {
+                const latestPeriod = Math.max(...filteredData.map(d => d.period || '2025-03'));
+                xaxisConfig.type = 'date';
+                xaxisConfig.range = ['2025-03-01', latestPeriod + '-01'];
+            }
+
             const layout = {
                 title: chartTitle,
-                xaxis: { title: currentTech === 'EV Vehicles' ? 'Period' : 'Month' },
+                xaxis: xaxisConfig,
                 yaxis: { title: yAxisTitle },
                 hovermode: 'x unified',
                 margin: { l: 60, r: 40, t: 40, b: 40 },
@@ -2171,10 +2179,12 @@
                 return;
             }
 
-            // Use March 2025 actual observation as baseline for observed cumulative additions
+            // Use March 2025 DFES as common baseline for all cumulative series
+            // Mar25 DFES baseline = 661,867 (aggregate of quarterly DfT observations converted to DFES value)
+            const mar25Dfes = mar25.dfes_monthly_benchmark || 661867;
             const baselines = {
-                estimated: mar25.actual_install_count,
-                dfes: mar25.dfes_monthly_benchmark,
+                estimated: mar25Dfes,
+                dfes: mar25Dfes,
                 ht: mar25.neso_ht,
                 htb: mar25.neso_htb
             };
@@ -2220,14 +2230,24 @@
             const htbX = [];
             const htbY = [];
 
+            // Find March 2026 actual value for SMMT visual anchor
+            const mar26Actual = allRows.find(r => r.period === '2026-03')?.actual_install_count;
+
             for (const row of cumulativeData) {
                 const dateVal = `${row.period}-01`;
                 dfesX.push(dateVal);
                 dfesY.push(row.dfes_monthly_benchmark ? row.dfes_monthly_benchmark - baselines.dfes : null);
-                if (row.smmt !== null) {
+
+                // Add SMMT nowcast points: start with Mar26 actual as visual anchor, then Apr-Aug nowcast
+                if (row.period === '2026-03' && mar26Actual !== null && mar26Actual !== undefined) {
+                    smtmX.push(dateVal);
+                    smtmY.push(mar26Actual - baselines.estimated);
+                }
+                if (row.smmt !== null && row.period > '2026-03') {
                     smtmX.push(dateVal);
                     smtmY.push(row.smmt - baselines.estimated);
                 }
+
                 htX.push(dateVal);
                 htY.push(row.neso_ht - baselines.ht);
                 htbX.push(dateVal);
