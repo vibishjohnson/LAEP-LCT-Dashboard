@@ -567,7 +567,7 @@
 
         // Helper: Calculate EV display range from ACTUAL and SMMT rows ONLY
         // Excludes forecasts (DFES, HT, HTB) which extend far into the future
-        function getEvDisplayRange(actualRows, smmtRows) {
+        function getEvDisplayRange(actualRows = [], smmtRows = []) {
             // Find latest DFT actual
             const actualPeriods = actualRows
                 .filter(r => r.comparison_point_type === 'Observation')
@@ -2184,7 +2184,10 @@
             // For EV charts, use dynamic x-axis range based on latest observed/provisional data
             const xaxisConfig = { title: currentTech === 'EV Vehicles' ? 'Period' : 'Month' };
             if (currentTech === 'EV Vehicles') {
-                const evRange = getEvDisplayRange(filteredData);
+                // Separate actual vs SMMT for range calculation
+                const actualForRange = filteredData.filter(r => r.comparison_point_type === 'Observation');
+                const smmtForRange = filteredData.filter(r => r.smmt !== null && r.smmt !== undefined);
+                const evRange = getEvDisplayRange(actualForRange, smmtForRange);
                 xaxisConfig.type = 'date';
                 xaxisConfig.range = [evRange.start, evRange.end];
                 xaxisConfig.tick0 = evRange.start;
@@ -2220,6 +2223,11 @@
             }
 
             const allRows = buildEvRows(actualData, forecastData);
+
+            // DEBUG: Log SMMT data loaded
+            console.log("RAW SMMT ROWS from forecast:", evForecastDno.filter(r => r.forecast_source === 'SMMT_NOWCAST' || r.observation_source === 'SMMT_NOWCAST').slice(0, 10));
+            console.log("buildEvRows output Mar-Aug (first row only):", allRows.filter(r => r.period >= '2026-03' && r.period <= '2026-08')[0]);
+            console.log("All SMMT values in buildEvRows:", allRows.filter(r => r.smmt !== null).map(r => ({ period: r.period, smmt: r.smmt })));
 
             // Find March 2025 baseline
             const mar25 = allRows.find(r => r.period === '2025-03');
@@ -2347,6 +2355,9 @@
             }
 
             if (smtmY.length > 0) {
+                console.log("SMMT Final Trace - Cumulative Chart:");
+                console.log("  x length:", smtmX.length, "values:", smtmX);
+                console.log("  y length:", smtmY.length, "values:", smtmY);
                 traces.push({
                     x: smtmX,
                     y: smtmY,
@@ -2357,6 +2368,8 @@
                     line: { color: '#4CAF50', width: 2, dash: 'dot', shape: 'linear' },
                     marker: { size: 6 }
                 });
+            } else {
+                console.warn("NO SMMT DATA FOUND - smtmY.length =", smtmY.length);
             }
 
             if (showDfes) {
