@@ -149,6 +149,31 @@ os.makedirs(os.path.join(CANDIDATE_DIR, "integration"), exist_ok=True)
 
 monthly_forecast = pd.read_csv(os.path.join(PROD_INPUT, "integration", "monthly_forecast_dno.csv"))
 
+# Load DFES forecast and prepare for appending (Apr 2026 onwards)
+dfes_forecast = pd.read_csv(os.path.join(PROD_INPUT, "dfes_ev_forecast_all.csv"))
+dfes_forecast_rows = []
+for _, row in dfes_forecast.iterrows():
+    if row['period'] >= '2026-04':  # Only append Apr 2026 onwards (avoid duplicating earlier periods)
+        dfes_forecast_rows.append({
+            'DNO': row['DNO'],
+            'value': float(row['forecast_value']),
+            'time_grain': 'month',
+            'tech_type': row['tech_type'],
+            'EV_Type': row['vehicle_type'].split('(')[-1].rstrip(')') if '(' in str(row['vehicle_type']) else 'BEV',
+            'forecast_source': 'DFES',
+            'forecast_scenario': row['Scenario'],
+            'dfes_pathway': 'Combined',
+            'building_block_id': None,
+            'metric': 'stock',
+            'observation_source': 'DFES',
+            'period': row['period'],
+            'period_end': row['period'] + '-30' if row['period'].endswith('-04') or row['period'].endswith('-06') else row['period'] + '-31',
+            'is_anchor': False,
+            'is_interpolated': True,
+            'source_year': 2025,
+            'anchor_date': '2026-03-31'
+        })
+
 # Build SMMT nowcast rows for April-August
 smmt_rows = []
 for _, row in monthly_fuel.iterrows():
@@ -178,10 +203,10 @@ for _, row in monthly_fuel.iterrows():
         'anchor_date': '2026-03-31'
     })
 
-# Keep all existing forecasts (including Apr-Aug 2026 DFES/HT/HTB if present)
-# Only append SMMT nowcast for Apr-Aug (SMMT_NOWCAST source)
+# Keep all existing forecasts and append DFES Apr 2026+ and SMMT nowcast
 monthly_forecast_complete = pd.concat([
     monthly_forecast,
+    pd.DataFrame(dfes_forecast_rows),
     pd.DataFrame(smmt_rows)
 ], ignore_index=True).sort_values(['period', 'DNO']).reset_index(drop=True)
 
