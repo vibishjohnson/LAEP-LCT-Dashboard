@@ -2184,9 +2184,9 @@
             // For EV charts, use dynamic x-axis range based on latest observed/provisional data
             const xaxisConfig = { title: currentTech === 'EV Vehicles' ? 'Period' : 'Month' };
             if (currentTech === 'EV Vehicles') {
-                // Separate actual vs SMMT for range calculation
-                const actualForRange = filteredData.filter(r => r.comparison_point_type === 'Observation');
-                const smmtForRange = filteredData.filter(r => r.smmt !== null && r.smmt !== undefined);
+                // Separate actual vs SMMT for range calculation (use stockData which has been filtered)
+                const actualForRange = stockData.filter(r => r.comparison_point_type === 'Observation');
+                const smmtForRange = stockData.filter(r => r.smmt !== null && r.smmt !== undefined);
                 const evRange = getEvDisplayRange(actualForRange, smmtForRange);
                 xaxisConfig.type = 'date';
                 xaxisConfig.range = [evRange.start, evRange.end];
