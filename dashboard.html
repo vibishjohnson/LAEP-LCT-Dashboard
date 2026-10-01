@@ -2272,6 +2272,20 @@
                 }
             }
 
+            // DEBUG: Print forecast rows Mar-Aug
+            const forecastDebug = {};
+            for (const row of cumulativeData) {
+                if (row.period >= '2026-03' && row.period <= '2026-08') {
+                    forecastDebug[row.period] = {
+                        period: row.period,
+                        dfes_monthly_benchmark: row.dfes_monthly_benchmark,
+                        neso_ht: row.neso_ht,
+                        neso_htb: row.neso_htb
+                    };
+                }
+            }
+            console.log("FORECAST ROWS MAR-AUG:", forecastDebug);
+
             // Build forecast series (monthly, all periods)
             const dfesX = [];
             const dfesY = [];
@@ -2397,6 +2411,15 @@
                     marker: { size: 6 }
                 });
             }
+
+            // DEBUG: Final forecast arrays
+            console.log("CUMULATIVE FORECAST TRACES - Mar-Aug 2026:");
+            console.log("DFES x (Mar-Aug):", dfesXClipped.filter(d => d >= '2026-03').slice(0, 6));
+            console.log("DFES y (Mar-Aug):", dfesYClipped.filter((d, i) => dfesXClipped[i] && dfesXClipped[i] >= '2026-03').slice(0, 6));
+            console.log("HT x (Mar-Aug):", htXClipped.filter(d => d >= '2026-03').slice(0, 6));
+            console.log("HT y (Mar-Aug):", htYClipped.filter((d, i) => htXClipped[i] && htXClipped[i] >= '2026-03').slice(0, 6));
+            console.log("HTB x (Mar-Aug):", htbXClipped.filter(d => d >= '2026-03').slice(0, 6));
+            console.log("HTB y (Mar-Aug):", htbYClipped.filter((d, i) => htbXClipped[i] && htbXClipped[i] >= '2026-03').slice(0, 6));
 
             // Use the same range calculated for clipping (already includes actual + SMMT)
             const layout = {
