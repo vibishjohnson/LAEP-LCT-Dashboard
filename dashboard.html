@@ -2189,7 +2189,9 @@
                 // Separate actual vs SMMT for range calculation (use stockData which has been filtered)
                 const actualForRange = stockData.filter(r => r.comparison_point_type === 'Observation');
                 const smmtForRange = stockData.filter(r => r.smmt !== null && r.smmt !== undefined);
+                console.log("Stock chart getEvDisplayRange - actualForRange:", actualForRange.length, "smmtForRange:", smmtForRange.length, "SMMT periods:", smmtForRange.map(r => r.period));
                 const evRange = getEvDisplayRange(actualForRange, smmtForRange);
+                console.log("Stock chart evRange result:", evRange);
                 xaxisConfig.type = 'date';
                 xaxisConfig.range = [evRange.start, evRange.end];
                 xaxisConfig.tick0 = evRange.start;
