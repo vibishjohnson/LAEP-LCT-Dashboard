@@ -118,8 +118,10 @@ for _, row in df_all.iterrows():
     total_change = val_end - val_start
 
     for month_idx, month in enumerate(months):
-        # Linear interpolation: 0 at month 0 (Apr), 1 at month 11 (Mar)
-        progress = month_idx / 11
+        # Linear interpolation using 12 equal monthly steps
+        # April=1/12, May=2/12, ..., March=12/12
+        month_offset = month_idx + 1
+        progress = month_offset / 12
         interpolated = val_start + (total_change * progress)
 
         monthly_records.append({

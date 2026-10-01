@@ -2209,14 +2209,16 @@
             document.getElementById('stockCaveat').textContent = caveat;
         }
 
-        // Interpolate forecast values between annual anchors using linear interpolation
+        // Interpolate forecast values between annual anchors using 12 equal monthly steps
+        // March 2026 (offset=0) to March 2027 (offset=12)
         function interpolateForecastMonthly(val2026Mar, val2027Mar) {
             const months = ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03'];
             const interpolated = [];
 
             const totalChange = val2027Mar - val2026Mar;
             for (let i = 0; i < months.length; i++) {
-                const progress = i / 11; // 0 at Apr 2026, 1 at Mar 2027
+                const monthOffset = i + 1; // April=1, May=2, ..., March2027=12
+                const progress = monthOffset / 12; // 1/12 for April, 2/12 for May, etc.
                 const value = val2026Mar + (totalChange * progress);
                 interpolated.push({ period: months[i], value: Math.round(value) });
             }
