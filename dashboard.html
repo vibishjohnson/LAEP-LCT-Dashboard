@@ -2292,6 +2292,9 @@
             const mar26Actual = allRows.find(r => r.period === '2026-03')?.actual_install_count;
             let smtmCumulativeStock = mar26Actual;
 
+            console.log("cumulativeData periods:", cumulativeData.map(r => r.period));
+            console.log("cumulativeData SMMT values:", cumulativeData.filter(r => r.period >= '2026-03').map(r => ({ period: r.period, smmt: r.smmt })));
+
             for (const row of cumulativeData) {
                 const dateVal = `${row.period}-01`;
                 dfesX.push(dateVal);
