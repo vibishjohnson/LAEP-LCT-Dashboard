@@ -150,29 +150,35 @@ os.makedirs(os.path.join(CANDIDATE_DIR, "integration"), exist_ok=True)
 monthly_forecast = pd.read_csv(os.path.join(PROD_INPUT, "integration", "monthly_forecast_dno.csv"))
 
 # Load DFES forecast and prepare for appending (Apr 2026 onwards)
+# Aggregate LSOA-level data to DNO-level
 dfes_forecast = pd.read_csv(os.path.join(PROD_INPUT, "dfes_ev_forecast_all.csv"))
+dfes_forecast_apr_plus = dfes_forecast[dfes_forecast['period'] >= '2026-04'].copy()
+
+# First map vehicle_type to BEV/PHEV, then aggregate
+dfes_forecast_apr_plus['EV_Type'] = dfes_forecast_apr_plus['vehicle_type'].apply(lambda x: 'PHEV' if 'PHEV' in str(x).upper() else 'BEV')
+dfes_agg = dfes_forecast_apr_plus.groupby(['period', 'DNO', 'EV_Type', 'Scenario'])['forecast_value'].sum().reset_index()
+
 dfes_forecast_rows = []
-for _, row in dfes_forecast.iterrows():
-    if row['period'] >= '2026-04':  # Only append Apr 2026 onwards (avoid duplicating earlier periods)
-        dfes_forecast_rows.append({
-            'DNO': row['DNO'],
-            'value': float(row['forecast_value']),
-            'time_grain': 'month',
-            'tech_type': row['tech_type'],
-            'EV_Type': row['vehicle_type'].split('(')[-1].rstrip(')') if '(' in str(row['vehicle_type']) else 'BEV',
-            'forecast_source': 'DFES',
-            'forecast_scenario': row['Scenario'],
-            'dfes_pathway': 'Combined',
-            'building_block_id': None,
-            'metric': 'stock',
-            'observation_source': 'DFES',
-            'period': row['period'],
-            'period_end': row['period'] + '-30' if row['period'].endswith('-04') or row['period'].endswith('-06') else row['period'] + '-31',
-            'is_anchor': False,
-            'is_interpolated': True,
-            'source_year': 2025,
-            'anchor_date': '2026-03-31'
-        })
+for _, row in dfes_agg.iterrows():
+    dfes_forecast_rows.append({
+        'DNO': row['DNO'],
+        'value': float(row['forecast_value']),
+        'time_grain': 'month',
+        'tech_type': 'EV',
+        'EV_Type': row['EV_Type'],
+        'forecast_source': 'DFES',
+        'forecast_scenario': row['Scenario'],
+        'dfes_pathway': 'Combined',
+        'building_block_id': None,
+        'metric': 'stock',
+        'observation_source': 'DFES',
+        'period': row['period'],
+        'period_end': row['period'] + '-30' if row['period'].endswith('-04') or row['period'].endswith('-06') else row['period'] + '-31',
+        'is_anchor': False,
+        'is_interpolated': True,
+        'source_year': 2025,
+        'anchor_date': '2026-03-31'
+    })
 
 # Build SMMT nowcast rows for April-August
 smmt_rows = []
