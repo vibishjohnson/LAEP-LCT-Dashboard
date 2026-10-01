@@ -565,20 +565,39 @@
         // EV chart window: March 2025 through latest observed/provisional data
         const EV_DISPLAY_START = '2025-03-01';
 
-        // Helper: Calculate EV display range dynamically from period strings
-        function getEvDisplayRange(allRows) {
-            // Simply find the max period value (works with YYYY-MM string format)
-            const periods = allRows.map(r => r.period).filter(p => p && typeof p === 'string');
+        // Helper: Calculate EV display range from ACTUAL and SMMT rows ONLY
+        // Excludes forecasts (DFES, HT, HTB) which extend far into the future
+        function getEvDisplayRange(actualRows, smmtRows) {
+            // Find latest DFT actual
+            const actualPeriods = actualRows
+                .filter(r => r.comparison_point_type === 'Observation')
+                .map(r => r.period)
+                .filter(p => p);
 
-            if (periods.length === 0) {
-                return { start: EV_DISPLAY_START, end: '2026-08-31' };
-            }
+            const latestDftActual = actualPeriods.length > 0
+                ? actualPeriods.reduce((latest, p) => p > latest ? p : latest)
+                : '2026-03';
 
-            // Find latest period by string comparison (YYYY-MM format sorts correctly)
-            const latestPeriod = periods.reduce((latest, p) => p > latest ? p : latest);
+            // Find latest SMMT nowcast
+            const smtmPeriods = smmtRows
+                .filter(r => r.smmt !== null && r.smmt !== undefined)
+                .map(r => r.period)
+                .filter(p => p);
+
+            const latestSmmt = smtmPeriods.length > 0
+                ? smtmPeriods.reduce((latest, p) => p > latest ? p : latest)
+                : latestDftActual;
+
+            // Latest observed period is max of actual and SMMT only
+            const latestObserved = latestSmmt > latestDftActual ? latestSmmt : latestDftActual;
+
+            console.log("EV Display Range:");
+            console.log("  Latest DFT actual:", latestDftActual);
+            console.log("  Latest SMMT:", latestSmmt);
+            console.log("  Latest observed:", latestObserved);
 
             // Convert YYYY-MM to YYYY-MM-DD (last day of month)
-            const [year, month] = latestPeriod.split('-').map(Number);
+            const [year, month] = latestObserved.split('-').map(Number);
             const nextMonth = new Date(year, month, 1);
             const lastDay = new Date(nextMonth - 1).getDate();
             const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -594,9 +613,9 @@
         const HP_DISPLAY_END_PERIOD = '2026-03';
 
         function evDemoDisplayRows(rows) {
-            // Filter EV data to start/end periods
-            const range = getEvDisplayRange(rows);
-            return rows.filter(d => d.period >= '2025-03' && d.period <= range.end.substring(0, 7));
+            // Filter EV data: March 2025 through August 2026 (safe hardcoded for now)
+            // Will be overridden by chart-specific range logic
+            return rows.filter(d => d.period >= '2025-03' && d.period <= '2026-08');
         }
 
         function hpDisplayRows(rows) {
@@ -2289,10 +2308,16 @@
                 htbY.push(row.neso_htb - baselines.htb);
             }
 
-            // Calculate latest observed period using the shared helper
-            const evRange = getEvDisplayRange(allRows);
+            // Calculate latest observed period (actual + SMMT only, not forecasts)
+            // Build lists of actual and SMMT rows
+            const actualRowsForRange = allRows.filter(r => r.comparison_point_type === 'Observation');
+            const smmtRowsForRange = allRows.filter(r => r.smmt !== null && r.smmt !== undefined);
+
+            const evRange = getEvDisplayRange(actualRowsForRange, smmtRowsForRange);
             // evRange.end is YYYY-MM-DD, but we need YYYY-MM-01 format for comparison
             const chartEndDate = evRange.end.substring(0, 7) + '-01';
+
+            console.log("Cumulative Chart - Using range:", evRange);
 
             // Clip forecast lines to latest observed/provisional period
             // DFES, HT, HTB should not extend beyond latest actual/SMMT data
