@@ -2010,9 +2010,7 @@
         function updateStockChart() {
             let stockData = filteredData.sort((a, b) => a.period.localeCompare(b.period));
             if (currentTech === 'EV Vehicles') {
-                console.log("Stock chart - Before evDemoDisplayRows:", stockData.length, "rows. SMMT rows:", stockData.filter(r => r.smmt !== null).length);
                 stockData = evDemoDisplayRows(stockData);
-                console.log("Stock chart - After evDemoDisplayRows:", stockData.length, "rows. SMMT rows:", stockData.filter(r => r.smmt !== null).length, "Periods:", stockData.map(r => r.period).join(", "));
             } else if (currentTech === 'Heat Pump') {
                 stockData = hpDisplayRows(stockData);
             }
@@ -2189,9 +2187,7 @@
                 // Separate actual vs SMMT for range calculation (use stockData which has been filtered)
                 const actualForRange = stockData.filter(r => r.comparison_point_type === 'Observation');
                 const smmtForRange = stockData.filter(r => r.smmt !== null && r.smmt !== undefined);
-                console.log("Stock chart getEvDisplayRange - actualForRange:", actualForRange.length, "smmtForRange:", smmtForRange.length, "SMMT periods:", smmtForRange.map(r => r.period));
                 const evRange = getEvDisplayRange(actualForRange, smmtForRange);
-                console.log("Stock chart evRange result:", evRange);
                 xaxisConfig.type = 'date';
                 xaxisConfig.range = [evRange.start, evRange.end];
                 xaxisConfig.tick0 = evRange.start;
@@ -2207,11 +2203,6 @@
                 showlegend: true,
                 legend: { x: 0, y: -0.2, orientation: 'h' }
             };
-
-            if (currentTech === 'EV Vehicles') {
-                console.log("Stock chart final layout xaxisConfig:", JSON.stringify(xaxisConfig));
-                console.log("Stock chart final layout.xaxis.range:", JSON.stringify(layout.xaxis.range));
-            }
 
             Plotly.newPlot('stockChart', traces, layout, { responsive: true });
             document.getElementById('stockChartTitle').textContent = getDisplayTitle(chartTitle);
@@ -2232,11 +2223,6 @@
             }
 
             const allRows = buildEvRows(actualData, forecastData);
-
-            // DEBUG: Log SMMT data loaded
-            console.log("RAW SMMT ROWS from forecast:", evForecastDno.filter(r => r.forecast_source === 'SMMT_NOWCAST' || r.observation_source === 'SMMT_NOWCAST').slice(0, 10));
-            console.log("buildEvRows output Mar-Aug (first row only):", allRows.filter(r => r.period >= '2026-03' && r.period <= '2026-08')[0]);
-            console.log("All SMMT values in buildEvRows:", allRows.filter(r => r.smmt !== null).map(r => ({ period: r.period, smmt: r.smmt })));
 
             // Find March 2025 baseline
             const mar25 = allRows.find(r => r.period === '2025-03');
@@ -2300,9 +2286,6 @@
             const mar26Actual = allRows.find(r => r.period === '2026-03')?.actual_install_count;
             let smtmCumulativeStock = mar26Actual;
 
-            console.log("cumulativeData periods:", cumulativeData.map(r => r.period));
-            console.log("cumulativeData SMMT values:", cumulativeData.filter(r => r.period >= '2026-03').map(r => ({ period: r.period, smmt: r.smmt })));
-
             for (const row of cumulativeData) {
                 const dateVal = `${row.period}-01`;
                 dfesX.push(dateVal);
@@ -2336,8 +2319,6 @@
             // evRange.end is YYYY-MM-DD, but we need YYYY-MM-01 format for comparison
             const chartEndDate = evRange.end.substring(0, 7) + '-01';
 
-            console.log("Cumulative Chart - Using range:", evRange);
-
             // Clip forecast lines to latest observed/provisional period
             // DFES, HT, HTB should not extend beyond latest actual/SMMT data
             const maxObservedIndex = dfesX.findIndex(d => d > chartEndDate);
@@ -2366,9 +2347,6 @@
             }
 
             if (smtmY.length > 0) {
-                console.log("SMMT Final Trace - Cumulative Chart:");
-                console.log("  x length:", smtmX.length, "values:", smtmX);
-                console.log("  y length:", smtmY.length, "values:", smtmY);
                 traces.push({
                     x: smtmX,
                     y: smtmY,
@@ -2379,8 +2357,7 @@
                     line: { color: '#4CAF50', width: 2, dash: 'dot', shape: 'linear' },
                     marker: { size: 6 }
                 });
-            } else {
-                console.warn("NO SMMT DATA FOUND - smtmY.length =", smtmY.length);
+            }
             }
 
             if (showDfes) {
@@ -2421,14 +2398,6 @@
                     marker: { size: 6 }
                 });
             }
-
-            // Debug output for final Plotly data
-            console.log('=== EV CUMULATIVE CHART - FINAL PLOTLY DATA ===');
-            traces.forEach(trace => {
-                console.log(`Trace: ${trace.name}`);
-                console.log(`  x (first 3): ${JSON.stringify(trace.x.slice(0, 3))}`);
-                console.log(`  y (first 3): ${JSON.stringify(trace.y.slice(0, 3))}`);
-            });
 
             // Use dynamic EV display range
             const evCumulativeRange = getEvDisplayRange(allRows);
