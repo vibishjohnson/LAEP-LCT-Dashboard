@@ -154,6 +154,10 @@ monthly_forecast = pd.read_csv(os.path.join(PROD_INPUT, "integration", "monthly_
 dfes_forecast = pd.read_csv(os.path.join(PROD_INPUT, "dfes_ev_forecast_all.csv"))
 dfes_forecast_apr_plus = dfes_forecast[dfes_forecast['period'] >= '2026-04'].copy()
 
+# Filter to only HolisticTransition scenario (which maps to DFES "High")
+# The dashboard expects DFES forecast_source with HolisticTransition scenario
+dfes_forecast_apr_plus = dfes_forecast_apr_plus[dfes_forecast_apr_plus['Scenario'] == 'HolisticTransition'].copy()
+
 # First map vehicle_type to BEV/PHEV, then aggregate
 dfes_forecast_apr_plus['EV_Type'] = dfes_forecast_apr_plus['vehicle_type'].apply(lambda x: 'PHEV' if 'PHEV' in str(x).upper() else 'BEV')
 dfes_agg = dfes_forecast_apr_plus.groupby(['period', 'DNO', 'EV_Type', 'Scenario'])['forecast_value'].sum().reset_index()
@@ -209,9 +213,17 @@ for _, row in monthly_fuel.iterrows():
         'anchor_date': '2026-03-31'
     })
 
-# Keep all existing forecasts and append DFES Apr 2026+ and SMMT nowcast
+# Filter out Apr-Aug 2026 DFES (High, Reduced Demand) from existing forecast
+# Keep only earlier periods and DFES HolisticTransition scenario
+monthly_forecast_filtered = monthly_forecast[
+    ~((monthly_forecast['period'] >= '2026-04') &
+      (monthly_forecast['forecast_source'] == 'DFES') &
+      (monthly_forecast['forecast_scenario'].isin(['High', 'Reduced Demand'])))
+].copy()
+
+# Keep all existing forecasts and append DFES Apr 2026+ (HolisticTransition only) and SMMT nowcast
 monthly_forecast_complete = pd.concat([
-    monthly_forecast,
+    monthly_forecast_filtered,
     pd.DataFrame(dfes_forecast_rows),
     pd.DataFrame(smmt_rows)
 ], ignore_index=True).sort_values(['period', 'DNO']).reset_index(drop=True)
