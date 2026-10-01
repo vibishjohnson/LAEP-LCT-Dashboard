@@ -2398,17 +2398,15 @@
                 });
             }
 
-            // Use dynamic EV display range
-            const evCumulativeRange = getEvDisplayRange(allRows);
-
+            // Use the same range calculated for clipping (already includes actual + SMMT)
             const layout = {
                 title: '',
                 xaxis: {
                     title: 'Period',
                     type: 'date',
                     tickformat: '%b %Y',
-                    range: [evCumulativeRange.start, evCumulativeRange.end],
-                    tick0: evCumulativeRange.start,
+                    range: [evRange.start, evRange.end],
+                    tick0: evRange.start,
                     dtick: 'M3'
                 },
                 yaxis: { title: 'Cumulative Additions (Vehicles)' },
