@@ -2230,22 +2230,26 @@
             const htbX = [];
             const htbY = [];
 
-            // Find March 2026 actual value for SMMT visual anchor
+            // Find March 2026 actual value for SMMT visual anchor and cumulative builds
             const mar26Actual = allRows.find(r => r.period === '2026-03')?.actual_install_count;
+            let smtmCumulativeStock = mar26Actual;
 
             for (const row of cumulativeData) {
                 const dateVal = `${row.period}-01`;
                 dfesX.push(dateVal);
                 dfesY.push(row.dfes_monthly_benchmark ? row.dfes_monthly_benchmark - baselines.dfes : null);
 
-                // Add SMMT nowcast points: start with Mar26 actual as visual anchor, then Apr-Aug nowcast
+                // Build SMMT nowcast cumulative trajectory: March 2026 anchor + Apr-Aug additions
                 if (row.period === '2026-03' && mar26Actual !== null && mar26Actual !== undefined) {
+                    // March 2026: DfT actual as starting point
                     smtmX.push(dateVal);
                     smtmY.push(mar26Actual - baselines.estimated);
-                }
-                if (row.smmt !== null && row.period > '2026-03') {
+                    smtmCumulativeStock = mar26Actual;
+                } else if (row.period > '2026-03' && row.smmt !== null) {
+                    // April-August: add monthly increments to cumulative stock
+                    smtmCumulativeStock += row.smmt;
                     smtmX.push(dateVal);
-                    smtmY.push(row.smmt - baselines.estimated);
+                    smtmY.push(smtmCumulativeStock - baselines.estimated);
                 }
 
                 htX.push(dateVal);
