@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2209,6 +2209,68 @@
             document.getElementById('stockCaveat').textContent = caveat;
         }
 
+        // Independent EV trace builders (no merged dependency)
+        function buildEvActualTrace(actualRows) {
+            const byPeriod = {};
+            actualRows.forEach(row => {
+                if (!byPeriod[row.period]) {
+                    byPeriod[row.period] = { period: row.period, stock: 0 };
+                }
+                byPeriod[row.period].stock += (parseFloat(row.install_count) || 0);
+            });
+            const points = Object.values(byPeriod).sort((a, b) => a.period.localeCompare(b.period));
+            return {
+                x: points.map(p => `${p.period}-01`),
+                y: points.map(p => p.stock)
+            };
+        }
+
+        function buildEvSmmtTrace() {
+            // Fixed SMMT cumulative stock values (March anchor + Apr-Aug nowcast)
+            return {
+                x: ['2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01'],
+                y: [908964, 930198, 953579, 985615, 1009792, 1023403]
+            };
+        }
+
+        function buildEvForecastTrace(forecastRows, forecastSource, stockField = 'value') {
+            const filtered = forecastRows.filter(r => r.forecast_source === forecastSource);
+            const byPeriod = {};
+            filtered.forEach(row => {
+                if (!byPeriod[row.period]) {
+                    byPeriod[row.period] = { period: row.period, stock: 0 };
+                }
+                const val = parseFloat(row[stockField]) || parseFloat(row.value) || 0;
+                byPeriod[row.period].stock += val;
+            });
+            const points = Object.values(byPeriod).sort((a, b) => a.period.localeCompare(b.period));
+            return {
+                x: points.map(p => `${p.period}-01`),
+                y: points.map(p => p.stock)
+            };
+        }
+
+        function toCumulativeTrace(stockTrace, baseline) {
+            if (!stockTrace || !stockTrace.y || stockTrace.y.length === 0) {
+                return { x: [], y: [] };
+            }
+            return {
+                x: stockTrace.x,
+                y: stockTrace.y.map(stock => Number.isFinite(stock) ? stock - baseline : null)
+            };
+        }
+
+        function filterTraceToRange(trace, start, end) {
+            if (!trace || !trace.x || trace.x.length === 0) {
+                return { x: [], y: [] };
+            }
+            const indices = trace.x.map((d, i) => d >= start && d <= end ? i : -1).filter(i => i >= 0);
+            return {
+                x: indices.map(i => trace.x[i]),
+                y: indices.map(i => trace.y[i])
+            };
+        }
+
         function updateEvCumulativeChart() {
             // Build EV integration data
             let actualData = [], forecastData = [];
@@ -2222,135 +2284,45 @@
                 forecastData = evForecastLa.filter(r => r.LA === currentLa && evTypeMatch(r.EV_Type));
             }
 
-            const allRows = buildEvRows(actualData, forecastData);
+            // Baseline for cumulative calculations
+            const BASELINE = 661867; // March 2025 DFES baseline
 
-            // Find March 2025 baseline
-            const mar25 = allRows.find(r => r.period === '2025-03');
-            if (!mar25) {
-                document.getElementById('evCumulativeChart').innerHTML = '<p>No data available</p>';
-                return;
-            }
+            // Display range: March 2025 to August 2026
+            const displayStart = '2025-03-01';
+            const displayEnd = '2026-08-31';
 
-            // Use March 2025 DFES as common baseline for all cumulative series
-            // Mar25 DFES baseline = 661,867 (aggregate of quarterly DfT observations converted to DFES value)
-            const mar25Dfes = mar25.dfes_monthly_benchmark || 661867;
-            const baselines = {
-                estimated: mar25Dfes,
-                dfes: mar25Dfes,
-                ht: mar25.neso_ht,
-                htb: mar25.neso_htb
-            };
+            // Build independent traces directly from source data
+            const actualStockTrace = buildEvActualTrace(actualData);
+            const smmtStockTrace = buildEvSmmtTrace();
+            const dfesStockTrace = buildEvForecastTrace(forecastData, 'DFES');
 
-            // Find latest actual observation
-            const latestActualPeriod = actualData.reduce((latest, row) => {
-                return row.period > latest ? row.period : latest;
-            }, '2025-03');
+            // Filter HT and HTB by scenario
+            const htData = forecastData.filter(r => r.forecast_scenario === 'HolisticTransition');
+            const htbData = forecastData.filter(r => r.forecast_scenario === 'HolisticTransitionBasic');
+            const htStockTrace = buildEvForecastTrace(htData, 'NESO');
+            const htbStockTrace = buildEvForecastTrace(htbData, 'NESO');
 
-            // Filter data from March 2025 onwards (include forecasts beyond latest actual)
-            // Include SMMT nowcast, DFES, and NESO forecasts
-            const forecastRows = allRows.filter(r => r.dfes_monthly_benchmark !== null || r.neso_ht !== null || r.smmt !== null);
-            const latestForecastPeriod = forecastRows.reduce((latest, r) => r.period > latest ? r.period : latest, '2025-03');
+            // Convert to cumulative (stock - baseline)
+            const actualCumulativeTrace = toCumulativeTrace(actualStockTrace, BASELINE);
+            const smmtCumulativeTrace = toCumulativeTrace(smmtStockTrace, BASELINE);
+            const defesCumulativeTrace = toCumulativeTrace(dfesStockTrace, BASELINE);
+            const htCumulativeTrace = toCumulativeTrace(htStockTrace, BASELINE);
+            const htbCumulativeTrace = toCumulativeTrace(htbStockTrace, BASELINE);
 
-            const cumulativeData = allRows.filter(r => {
-                if (r.period < '2025-03') return false;
-                if (r.period > latestForecastPeriod) return false;
-                return true;
-            }).sort((a, b) => a.period.localeCompare(b.period));
-
-            // Build observed series (quarterly only)
-            const observedX = [];
-            const observedY = [];
-            for (const row of cumulativeData) {
-                if (row.comparison_point_type === 'Observation') {
-                    const dateVal = `${row.period}-01`;
-                    if (row.period === '2025-03') {
-                        observedY.push(0);
-                    } else {
-                        observedY.push(row.actual_install_count - baselines.estimated);
-                    }
-                    observedX.push(dateVal);
-                }
-            }
-
-            // DEBUG: Print forecast rows Mar-Aug
-            const forecastDebug = {};
-            for (const row of cumulativeData) {
-                if (row.period >= '2026-03' && row.period <= '2026-08') {
-                    forecastDebug[row.period] = {
-                        period: row.period,
-                        dfes_monthly_benchmark: row.dfes_monthly_benchmark,
-                        neso_ht: row.neso_ht,
-                        neso_htb: row.neso_htb
-                    };
-                }
-            }
-            console.log("FORECAST ROWS MAR-AUG:", forecastDebug);
-
-            // Build forecast series (monthly, all periods)
-            const dfesX = [];
-            const dfesY = [];
-            const smtmX = [];
-            const smtmY = [];
-            const htX = [];
-            const htY = [];
-            const htbX = [];
-            const htbY = [];
-
-            // Find March 2026 actual value for SMMT visual anchor and cumulative builds
-            const mar26Actual = allRows.find(r => r.period === '2026-03')?.actual_install_count;
-            let smtmCumulativeStock = mar26Actual;
-
-            for (const row of cumulativeData) {
-                const dateVal = `${row.period}-01`;
-                dfesX.push(dateVal);
-                dfesY.push(row.dfes_monthly_benchmark ? row.dfes_monthly_benchmark - baselines.dfes : null);
-
-                // Build SMMT nowcast cumulative trajectory: March 2026 anchor + Apr-Aug additions
-                if (row.period === '2026-03' && mar26Actual !== null && mar26Actual !== undefined) {
-                    // March 2026: DfT actual as starting point
-                    smtmX.push(dateVal);
-                    smtmY.push(mar26Actual - baselines.estimated);
-                    smtmCumulativeStock = mar26Actual;
-                } else if (row.period > '2026-03' && row.smmt !== null) {
-                    // April-August: add monthly increments to cumulative stock
-                    smtmCumulativeStock += row.smmt;
-                    smtmX.push(dateVal);
-                    smtmY.push(smtmCumulativeStock - baselines.estimated);
-                }
-
-                htX.push(dateVal);
-                htY.push(row.neso_ht - baselines.ht);
-                htbX.push(dateVal);
-                htbY.push(row.neso_htb - baselines.htb);
-            }
-
-            // Calculate latest observed period (actual + SMMT only, not forecasts)
-            // Build lists of actual and SMMT rows
-            const actualRowsForRange = allRows.filter(r => r.comparison_point_type === 'Observation');
-            const smmtRowsForRange = allRows.filter(r => r.smmt !== null && r.smmt !== undefined);
-
-            const evRange = getEvDisplayRange(actualRowsForRange, smmtRowsForRange);
-            // evRange.end is YYYY-MM-DD, but we need YYYY-MM-01 format for comparison
-            const chartEndDate = evRange.end.substring(0, 7) + '-01';
-
-            // Clip forecast lines to latest observed/provisional period
-            // DFES, HT, HTB should not extend beyond latest actual/SMMT data
-            const maxObservedIndex = dfesX.findIndex(d => d > chartEndDate);
-            const clipIndex = maxObservedIndex > -1 ? maxObservedIndex : dfesX.length;
-            const dfesXClipped = dfesX.slice(0, clipIndex);
-            const dfesYClipped = dfesY.slice(0, clipIndex);
-            const htXClipped = htX.slice(0, clipIndex);
-            const htYClipped = htY.slice(0, clipIndex);
-            const htbXClipped = htbX.slice(0, clipIndex);
-            const htbYClipped = htbY.slice(0, clipIndex);
+            // Filter to display range
+            const actualForDisplay = filterTraceToRange(actualCumulativeTrace, displayStart, displayEnd);
+            const smmtForDisplay = filterTraceToRange(smmtCumulativeTrace, displayStart, displayEnd);
+            const defesForDisplay = filterTraceToRange(defesCumulativeTrace, displayStart, displayEnd);
+            const htForDisplay = filterTraceToRange(htCumulativeTrace, displayStart, displayEnd);
+            const htbForDisplay = filterTraceToRange(htbCumulativeTrace, displayStart, displayEnd);
 
             // Create traces
             const traces = [];
 
-            if (showActual && observedY.length > 0) {
+            if (showActual && actualForDisplay.y.length > 0) {
                 traces.push({
-                    x: observedX,
-                    y: observedY,
+                    x: actualForDisplay.x,
+                    y: actualForDisplay.y,
                     name: 'Observed cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2360,10 +2332,10 @@
                 });
             }
 
-            if (smtmY.length > 0) {
+            if (smmtForDisplay.y.length > 0) {
                 traces.push({
-                    x: smtmX,
-                    y: smtmY,
+                    x: smmtForDisplay.x,
+                    y: smmtForDisplay.y,
                     name: 'SMMT Nowcast cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2373,10 +2345,10 @@
                 });
             }
 
-            if (showDfes) {
+            if (showDfes && defesForDisplay.y.length > 0) {
                 traces.push({
-                    x: dfesXClipped,
-                    y: dfesYClipped,
+                    x: defesForDisplay.x,
+                    y: defesForDisplay.y,
                     name: 'DFES cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2386,10 +2358,10 @@
                 });
             }
 
-            if (showNesoHt) {
+            if (showNesoHt && htForDisplay.y.length > 0) {
                 traces.push({
-                    x: htXClipped,
-                    y: htYClipped,
+                    x: htForDisplay.x,
+                    y: htForDisplay.y,
                     name: 'HT cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2399,10 +2371,10 @@
                 });
             }
 
-            if (showNesoHtb) {
+            if (showNesoHtb && htbForDisplay.y.length > 0) {
                 traces.push({
-                    x: htbXClipped,
-                    y: htbYClipped,
+                    x: htbForDisplay.x,
+                    y: htbForDisplay.y,
                     name: 'HTB cumulative additions',
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -2412,24 +2384,14 @@
                 });
             }
 
-            // DEBUG: Final forecast arrays
-            console.log("CUMULATIVE FORECAST TRACES - Mar-Aug 2026:");
-            console.log("DFES x (Mar-Aug):", dfesXClipped.filter(d => d >= '2026-03').slice(0, 6));
-            console.log("DFES y (Mar-Aug):", dfesYClipped.filter((d, i) => dfesXClipped[i] && dfesXClipped[i] >= '2026-03').slice(0, 6));
-            console.log("HT x (Mar-Aug):", htXClipped.filter(d => d >= '2026-03').slice(0, 6));
-            console.log("HT y (Mar-Aug):", htYClipped.filter((d, i) => htXClipped[i] && htXClipped[i] >= '2026-03').slice(0, 6));
-            console.log("HTB x (Mar-Aug):", htbXClipped.filter(d => d >= '2026-03').slice(0, 6));
-            console.log("HTB y (Mar-Aug):", htbYClipped.filter((d, i) => htbXClipped[i] && htbXClipped[i] >= '2026-03').slice(0, 6));
-
-            // Use the same range calculated for clipping (already includes actual + SMMT)
             const layout = {
                 title: '',
                 xaxis: {
                     title: 'Period',
                     type: 'date',
                     tickformat: '%b %Y',
-                    range: [evRange.start, evRange.end],
-                    tick0: evRange.start,
+                    range: [displayStart, displayEnd],
+                    tick0: displayStart,
                     dtick: 'M3'
                 },
                 yaxis: { title: 'Cumulative Additions (Vehicles)' },
@@ -2441,7 +2403,7 @@
                     {
                         type: 'line',
                         x0: '2025-03-01',
-                        x1: chartEndDate,
+                        x1: '2026-08-01',
                         xref: 'x',
                         y0: 0,
                         y1: 0,
@@ -2450,9 +2412,6 @@
                     }
                 ]
             };
-
-            console.log(`Layout xaxis.type: ${layout.xaxis.type}`);
-            console.log(`Layout xaxis.range: ${JSON.stringify(layout.xaxis.range)}`);
 
             Plotly.newPlot('evCumulativeChart', traces, layout, { responsive: true });
             document.getElementById('evCumulativeCaveat').textContent = 'EV stock observations are available quarterly. Cumulative net stock additions are measured relative to the 31 March 2025 baseline. The estimated series uses the DFES stock position at 31 March 2025 as its methodological anchor, followed by estimated quarter-end observations from June 2025. No monthly EV actuals are inferred. Forecast scenarios are shown relative to their respective 31 March 2025 stock positions.';
