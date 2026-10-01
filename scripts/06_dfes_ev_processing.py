@@ -28,7 +28,7 @@ if not os.path.exists(excel_file):
 
 print(f"\nLoading DFES data: {excel_file}")
 print(f"Scenario World: {SCENARIO_WORLD}")
-print(f"Period: Apr 2025 - Mar 2026 (interpolating 2024 -> 2025)")
+print(f"Period: Apr 2025 - Aug 2026 (interpolating 2024->2025 and 2025->2026)")
 
 # Read cars and vans sheets
 df_cars = pd.read_excel(excel_file, sheet_name='cars')
@@ -43,11 +43,11 @@ df_vans = df_vans[df_vans['Scenario World'] == SCENARIO_WORLD].copy()
 
 print(f"  After scenario filter: Cars {df_cars.shape[0]}, Vans {df_vans.shape[0]}")
 
-# Extract BEV + PHEV for both years (2024 = start of FY, 2025 = end of FY)
-bev_cars = df_cars[df_cars['Parameter'] == 'BEV Cars'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
-phev_cars = df_cars[df_cars['Parameter'] == 'PHEV Cars'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
-bev_vans = df_vans[df_vans['Parameter'] == 'BEV Vans'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
-phev_vans = df_vans[df_vans['Parameter'] == 'PHEV Vans'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+# Extract BEV + PHEV for years 2024, 2025, 2026 (for two interpolation periods)
+bev_cars = df_cars[df_cars['Parameter'] == 'BEV Cars'][['LSOA21CD', 'Scenario', 2024, 2025, 2026]].copy()
+phev_cars = df_cars[df_cars['Parameter'] == 'PHEV Cars'][['LSOA21CD', 'Scenario', 2024, 2025, 2026]].copy()
+bev_vans = df_vans[df_vans['Parameter'] == 'BEV Vans'][['LSOA21CD', 'Scenario', 2024, 2025, 2026]].copy()
+phev_vans = df_vans[df_vans['Parameter'] == 'PHEV Vans'][['LSOA21CD', 'Scenario', 2024, 2025, 2026]].copy()
 
 # Add labels
 bev_cars['vehicle_type'] = 'Cars (BEV)'
@@ -69,8 +69,8 @@ if os.path.exists(taxi_phv_file):
     print(f"  PHV shape: {df_phv.shape}, after scenario filter: {len(df_phv)}")
 
     # Extract BEV only (NOT PHEV taxi/PHV per spec)
-    bev_taxi = df_taxi[df_taxi['Parameter'] == 'EV Taxis'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
-    bev_phv = df_phv[df_phv['Parameter'] == 'EV PHVs'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+    bev_taxi = df_taxi[df_taxi['Parameter'] == 'EV Taxis'][['LSOA21CD', 'Scenario', 2024, 2025, 2026]].copy()
+    bev_phv = df_phv[df_phv['Parameter'] == 'EV PHVs'][['LSOA21CD', 'Scenario', 2024, 2025, 2026]].copy()
 
     bev_taxi['vehicle_type'] = 'Taxis (BEV)'
     bev_phv['vehicle_type'] = 'PHVs (BEV)'
@@ -90,7 +90,7 @@ if os.path.exists(moto_file):
     print(f"  Motorcycle shape: {df_moto.shape}, after scenario filter: {len(df_moto)}")
 
     # Extract BEV only (NOT PHEV motorcycles per spec)
-    bev_moto = df_moto[df_moto['Parameter'] == 'EV Motorcycles'][['LSOA21CD', 'Scenario', 2024, 2025]].copy()
+    bev_moto = df_moto[df_moto['Parameter'] == 'EV Motorcycles'][['LSOA21CD', 'Scenario', 2024, 2025, 2026]].copy()
     bev_moto['vehicle_type'] = 'Motorcycles (BEV)'
 else:
     print(f"  Warning: Motorcycle file not found: {moto_file}")
@@ -98,31 +98,57 @@ else:
 
 # Combine all (BEV cars, PHEV cars, BEV vans, PHEV vans, BEV taxis, BEV PHVs, BEV motorcycles)
 df_all = pd.concat([bev_cars, phev_cars, bev_vans, phev_vans, bev_taxi, bev_phv, bev_moto], ignore_index=True)
-df_all.columns = ['LSOA21CD', 'Scenario', 'value_2024', 'value_2025', 'vehicle_type']
+df_all.columns = ['LSOA21CD', 'Scenario', 'value_2024', 'value_2025', 'value_2026', 'vehicle_type']
 df_all['value_2024'] = pd.to_numeric(df_all['value_2024'], errors='coerce').fillna(0).astype(int)
 df_all['value_2025'] = pd.to_numeric(df_all['value_2025'], errors='coerce').fillna(0).astype(int)
+df_all['value_2026'] = pd.to_numeric(df_all['value_2026'], errors='coerce').fillna(0).astype(int)
 
 print(f"\nTotal records: {len(df_all)}")
 print(f"EV stock 31 Mar 2025 (start): {df_all['value_2024'].sum():,}")
-print(f"EV stock 31 Mar 2026 (end):   {df_all['value_2025'].sum():,}")
+print(f"EV stock 31 Mar 2026 (mid):   {df_all['value_2025'].sum():,}")
+print(f"EV stock 31 Mar 2027 (end):   {df_all['value_2026'].sum():,}")
 
-# Linear interpolation between 2024 (31 Mar 2025) and 2025 (31 Mar 2026)
-# Create monthly values for Apr 2025 - Mar 2026 (12 months)
+# Linear interpolation between fiscal year anchors
+# Period 1: 2024 (31 Mar 2025) -> 2025 (31 Mar 2026): Apr 2025 - Mar 2026
+# Period 2: 2025 (31 Mar 2026) -> 2026 (31 Mar 2027): Apr 2026 - Mar 2027 (only through Aug 2026 for display)
 monthly_records = []
-months = ['2025-04', '2025-05', '2025-06', '2025-07', '2025-08', '2025-09',
-          '2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03']
+
+# Period 1: Apr 2025 - Mar 2026
+months_p1 = ['2025-04', '2025-05', '2025-06', '2025-07', '2025-08', '2025-09',
+             '2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03']
+
+# Period 2: Apr 2026 - Mar 2027 (only generating through Aug 2026 for now, but March 2027 is used as anchor)
+months_p2 = ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09',
+             '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03']
 
 for _, row in df_all.iterrows():
-    val_start = row['value_2024']
-    val_end = row['value_2025']
-    total_change = val_end - val_start
+    # Period 1: Apr 2025 - Mar 2026
+    val_start_p1 = row['value_2024']
+    val_end_p1 = row['value_2025']
+    total_change_p1 = val_end_p1 - val_start_p1
 
-    for month_idx, month in enumerate(months):
-        # Linear interpolation using 12 equal monthly steps
-        # April=1/12, May=2/12, ..., March=12/12
+    for month_idx, month in enumerate(months_p1):
         month_offset = month_idx + 1
         progress = month_offset / 12
-        interpolated = val_start + (total_change * progress)
+        interpolated = val_start_p1 + (total_change_p1 * progress)
+
+        monthly_records.append({
+            'period': month,
+            'LSOA21CD': row['LSOA21CD'],
+            'Scenario': row['Scenario'],
+            'vehicle_type': row['vehicle_type'],
+            'forecast_count': int(round(interpolated))
+        })
+
+    # Period 2: Apr 2026 - Mar 2027
+    val_start_p2 = row['value_2025']
+    val_end_p2 = row['value_2026']
+    total_change_p2 = val_end_p2 - val_start_p2
+
+    for month_idx, month in enumerate(months_p2):
+        month_offset = month_idx + 1
+        progress = month_offset / 12
+        interpolated = val_start_p2 + (total_change_p2 * progress)
 
         monthly_records.append({
             'period': month,
@@ -167,7 +193,7 @@ for scenario in sorted(df_monthly['Scenario'].unique()):
 
     total_forecast = scenario_data['forecast_value'].sum()
     print(f"\nDFES EV Forecast ({scenario}): {out_path}")
-    print(f"  Total (Apr 2025 - Mar 2026): {total_forecast:,}")
+    print(f"  Total (Apr 2025 - Mar 2027): {total_forecast:,}")
 
 # Also save combined for dashboard
 df_combined = df_monthly[['period', 'tech_type', 'LSOA21CD', 'DNO', 'forecast_value', 'vehicle_type', 'Scenario']].copy()
