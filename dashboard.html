@@ -2010,7 +2010,9 @@
         function updateStockChart() {
             let stockData = filteredData.sort((a, b) => a.period.localeCompare(b.period));
             if (currentTech === 'EV Vehicles') {
+                console.log("Stock chart - Before evDemoDisplayRows:", stockData.length, "rows. SMMT rows:", stockData.filter(r => r.smmt !== null).length);
                 stockData = evDemoDisplayRows(stockData);
+                console.log("Stock chart - After evDemoDisplayRows:", stockData.length, "rows. SMMT rows:", stockData.filter(r => r.smmt !== null).length, "Periods:", stockData.map(r => r.period).join(", "));
             } else if (currentTech === 'Heat Pump') {
                 stockData = hpDisplayRows(stockData);
             }
