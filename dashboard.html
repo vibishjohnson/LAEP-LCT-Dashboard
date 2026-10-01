@@ -565,33 +565,27 @@
         // EV chart window: March 2025 through latest observed/provisional data
         const EV_DISPLAY_START = '2025-03-01';
 
-        // Helper: Calculate EV display range dynamically
+        // Helper: Calculate EV display range dynamically from period strings
         function getEvDisplayRange(allRows) {
-            // Find latest DfT actual and SMMT nowcast period
-            const dfesActuals = allRows.filter(r => r.comparison_point_type === 'Observation');
-            const smtmData = allRows.filter(r => r.smmt !== null && r.smmt !== undefined);
+            // Simply find the max period value (works with YYYY-MM string format)
+            const periods = allRows.map(r => r.period).filter(p => p && typeof p === 'string');
 
-            const latestDfT = dfesActuals.length > 0
-                ? Math.max(...dfesActuals.map(r => new Date(r.period + '-01')))
-                : new Date('2025-03-01');
-            const latestSmmt = smtmData.length > 0
-                ? Math.max(...smtmData.map(r => new Date(r.period + '-01')))
-                : latestDfT;
+            if (periods.length === 0) {
+                return { start: EV_DISPLAY_START, end: '2026-08-31' };
+            }
 
-            const latestObserved = new Date(Math.max(latestDfT, latestSmmt));
+            // Find latest period by string comparison (YYYY-MM format sorts correctly)
+            const latestPeriod = periods.reduce((latest, p) => p > latest ? p : latest);
 
-            // Format as YYYY-MM-DD (end of month)
-            const year = latestObserved.getFullYear();
-            const month = String(latestObserved.getMonth() + 1).padStart(2, '0');
-            const endDate = `${year}-${month}-`;
-
-            // Determine end date (last day of month)
-            const nextMonth = new Date(year, latestObserved.getMonth() + 1, 1);
+            // Convert YYYY-MM to YYYY-MM-DD (last day of month)
+            const [year, month] = latestPeriod.split('-').map(Number);
+            const nextMonth = new Date(year, month, 1);
             const lastDay = new Date(nextMonth - 1).getDate();
+            const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
             return {
                 start: EV_DISPLAY_START,
-                end: endDate + String(lastDay).padStart(2, '0')
+                end: endDate
             };
         }
 
@@ -601,7 +595,6 @@
 
         function evDemoDisplayRows(rows) {
             // Filter EV data to start/end periods
-            // End period is calculated dynamically
             const range = getEvDisplayRange(rows);
             return rows.filter(d => d.period >= '2025-03' && d.period <= range.end.substring(0, 7));
         }
@@ -2296,12 +2289,10 @@
                 htbY.push(row.neso_htb - baselines.htb);
             }
 
-            // Calculate latest observed period (max of DfT actual and SMMT)
-            const latestSmtmPeriod = smtmData.length > 0
-                ? Math.max(...smtmData.filter(r => r.smmt !== null).map(r => r.period))
-                : latestActualPeriod;
-            const latestObservedPeriod = Math.max(latestActualPeriod, latestSmtmPeriod);
-            const chartEndDate = `${latestObservedPeriod}-01`;
+            // Calculate latest observed period using the shared helper
+            const evRange = getEvDisplayRange(allRows);
+            // evRange.end is YYYY-MM-DD, but we need YYYY-MM-01 format for comparison
+            const chartEndDate = evRange.end.substring(0, 7) + '-01';
 
             // Clip forecast lines to latest observed/provisional period
             // DFES, HT, HTB should not extend beyond latest actual/SMMT data
