@@ -562,13 +562,15 @@
         let showNesoHt = true;
         let showNesoHtb = true;
         // Temporary demo display cap for EV charts only. Does not alter loaded forecast files.
-        const EV_DEMO_DISPLAY_END_PERIOD = '2026-03';
+        // EV chart range: March 2025 through August 2026 (includes SMMT nowcast)
+        const EV_DEMO_DISPLAY_START_PERIOD = '2025-03';
+        const EV_DEMO_DISPLAY_END_PERIOD = '2026-08';
         // Existing HP visible window. Full HP forecast files still run to 2051-03.
         const HP_DISPLAY_START_PERIOD = '2025-04';
         const HP_DISPLAY_END_PERIOD = '2026-03';
 
         function evDemoDisplayRows(rows) {
-            return rows.filter(d => d.period <= EV_DEMO_DISPLAY_END_PERIOD);
+            return rows.filter(d => d.period >= EV_DEMO_DISPLAY_START_PERIOD && d.period <= EV_DEMO_DISPLAY_END_PERIOD);
         }
 
         function hpDisplayRows(rows) {
@@ -2134,12 +2136,11 @@
                 traces = [actualTrace, ...window._extraHpStockTraces];
             }
 
-            // For EV charts, start x-axis at March 2025
+            // For EV charts, use fixed x-axis range: March 2025 through August 2026
             const xaxisConfig = { title: currentTech === 'EV Vehicles' ? 'Period' : 'Month' };
             if (currentTech === 'EV Vehicles') {
-                const latestPeriod = Math.max(...filteredData.map(d => d.period || '2025-03'));
                 xaxisConfig.type = 'date';
-                xaxisConfig.range = ['2025-03-01', latestPeriod + '-01'];
+                xaxisConfig.range = ['2025-03-01', '2026-08-31'];
             }
 
             const layout = {
@@ -2195,8 +2196,9 @@
             }, '2025-03');
 
             // Filter data from March 2025 onwards (include forecasts beyond latest actual)
+            // Include SMMT nowcast, DFES, and NESO forecasts
             const latestForecastPeriod = Math.max(
-                ...allRows.filter(r => r.dfes_monthly_benchmark !== null || r.neso_ht !== null).map(r => r.period)
+                ...allRows.filter(r => r.dfes_monthly_benchmark !== null || r.neso_ht !== null || r.smmt !== null).map(r => r.period)
             ) || latestActualPeriod;
 
             const cumulativeData = allRows.filter(r => {
@@ -2336,13 +2338,16 @@
                 console.log(`  y (first 3): ${JSON.stringify(trace.y.slice(0, 3))}`);
             });
 
+            // Ensure cumulative chart extends through August 2026 for SMMT display
+            const cumulativeChartEnd = chartEndDate < '2026-08-31' ? '2026-08-31' : chartEndDate;
+
             const layout = {
                 title: '',
                 xaxis: {
                     title: 'Period',
                     type: 'date',
                     tickformat: '%b %Y',
-                    range: ['2025-03-01', chartEndDate]
+                    range: ['2025-03-01', cumulativeChartEnd]
                 },
                 yaxis: { title: 'Cumulative Additions (Vehicles)' },
                 hovermode: 'x unified',
