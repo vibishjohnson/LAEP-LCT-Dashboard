@@ -160,33 +160,8 @@ dfes_forecast_apr_plus = dfes_forecast_apr_plus[dfes_forecast_apr_plus['Scenario
 
 # First map vehicle_type to BEV/PHEV, then aggregate
 dfes_forecast_apr_plus['EV_Type'] = dfes_forecast_apr_plus['vehicle_type'].apply(lambda x: 'PHEV' if 'PHEV' in str(x).upper() else 'BEV')
-dfes_agg = dfes_forecast_apr_plus.groupby(['period', 'DNO', 'EV_Type', 'Scenario'])['forecast_value'].sum().reset_index()
-
-# DFES forecast values are interpolated stock values from the DFES processing script
-# They represent the estimated stock for each month, not additions
-# Use them as-is without further calculation
-
-dfes_forecast_rows = []
-for _, row in dfes_agg.iterrows():
-    dfes_forecast_rows.append({
-        'DNO': row['DNO'],
-        'value': float(row['forecast_value']),
-        'time_grain': 'month',
-        'tech_type': 'EV',
-        'EV_Type': row['EV_Type'],
-        'forecast_source': 'DFES',
-        'forecast_scenario': 'HolisticTransition',  # Map DFES "High" to HolisticTransition for dashboard
-        'dfes_pathway': 'Combined',
-        'building_block_id': None,
-        'metric': 'stock',
-        'observation_source': 'DFES',
-        'period': row['period'],
-        'period_end': row['period'] + '-30' if row['period'].endswith('-04') or row['period'].endswith('-06') else row['period'] + '-31',
-        'is_anchor': False,
-        'is_interpolated': True,
-        'source_year': 2025,
-        'anchor_date': '2026-03-31'
-    })
+# Note: Not regenerating Apr-Aug 2026 DFES forecast data
+# Using existing data from input monthly_forecast_dno.csv which already has it
 
 # Build SMMT nowcast rows for April-August
 smmt_rows = []
@@ -217,17 +192,10 @@ for _, row in monthly_fuel.iterrows():
         'anchor_date': '2026-03-31'
     })
 
-# Filter out ALL Apr-Aug 2026 DFES from existing forecast (any scenario)
-# Will append fresh DFES Apr-Aug 2026 with HolisticTransition scenario
-monthly_forecast_filtered = monthly_forecast[
-    ~((monthly_forecast['period'] >= '2026-04') &
-      (monthly_forecast['forecast_source'] == 'DFES'))
-].copy()
-
-# Keep all existing forecasts and append DFES Apr 2026+ (HolisticTransition only) and SMMT nowcast
+# Keep all existing forecasts including Apr-Aug 2026 DFES
+# Only append SMMT nowcast data for Apr-Aug 2026
 monthly_forecast_complete = pd.concat([
-    monthly_forecast_filtered,
-    pd.DataFrame(dfes_forecast_rows),
+    monthly_forecast,
     pd.DataFrame(smmt_rows)
 ], ignore_index=True).sort_values(['period', 'DNO']).reset_index(drop=True)
 
