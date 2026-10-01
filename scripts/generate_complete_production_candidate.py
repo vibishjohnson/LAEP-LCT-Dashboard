@@ -149,19 +149,106 @@ os.makedirs(os.path.join(CANDIDATE_DIR, "integration"), exist_ok=True)
 
 monthly_forecast = pd.read_csv(os.path.join(PROD_INPUT, "integration", "monthly_forecast_dno.csv"))
 
-# Load DFES forecast and prepare for appending (Apr 2026 onwards)
-# Aggregate LSOA-level data to DNO-level
-dfes_forecast = pd.read_csv(os.path.join(PROD_INPUT, "dfes_ev_forecast_all.csv"))
-dfes_forecast_apr_plus = dfes_forecast[dfes_forecast['period'] >= '2026-04'].copy()
+# Remove existing incomplete DFES Mar 2027 data (will replace with complete version)
+monthly_forecast = monthly_forecast[~((monthly_forecast['period'] == '2027-03') &
+                                       (monthly_forecast['forecast_source'] == 'DFES'))].copy()
 
-# Filter to only High scenario (which we'll rename to HolisticTransition for dashboard)
-# The dashboard expects DFES forecast_source with HolisticTransition scenario
-dfes_forecast_apr_plus = dfes_forecast_apr_plus[dfes_forecast_apr_plus['Scenario'] == 'High'].copy()
+# Load complete DFES forecast Mar 2027 anchor (1.34M) from original Excel
+dfes_mar_2027_rows = []
 
-# First map vehicle_type to BEV/PHEV, then aggregate
-dfes_forecast_apr_plus['EV_Type'] = dfes_forecast_apr_plus['vehicle_type'].apply(lambda x: 'PHEV' if 'PHEV' in str(x).upper() else 'BEV')
-# Note: Not regenerating Apr-Aug 2026 DFES forecast data
-# Using existing data from input monthly_forecast_dno.csv which already has it
+excel_file = os.path.join(PROJECT_ROOT, "dfes", "DFES 2026", "UKPN-electric-car-van-scenarios-LSOA UPDATED.xlsx")
+if os.path.exists(excel_file):
+    # Read directly from Excel to get 2026 values (Mar 2027 anchor)
+    df_cars = pd.read_excel(excel_file, sheet_name='cars')
+    df_vans = pd.read_excel(excel_file, sheet_name='vans')
+
+    # Filter to HolisticTransition scenario
+    df_cars = df_cars[df_cars['Scenario World'] == 'HolisticTransition'].copy()
+    df_vans = df_vans[df_vans['Scenario World'] == 'HolisticTransition'].copy()
+
+    # Extract 2026 values for each vehicle type (Mar 2027 anchor)
+    bev_cars_2026 = df_cars[df_cars['Parameter'] == 'BEV Cars'][['LSOA21CD', 2026]].copy()
+    phev_cars_2026 = df_cars[df_cars['Parameter'] == 'PHEV Cars'][['LSOA21CD', 2026]].copy()
+    bev_vans_2026 = df_vans[df_vans['Parameter'] == 'BEV Vans'][['LSOA21CD', 2026]].copy()
+    phev_vans_2026 = df_vans[df_vans['Parameter'] == 'PHEV Vans'][['LSOA21CD', 2026]].copy()
+
+    # Add labels
+    bev_cars_2026['vehicle_type'] = 'Cars (BEV)'
+    phev_cars_2026['vehicle_type'] = 'Cars (PHEV)'
+    bev_vans_2026['vehicle_type'] = 'Vans (BEV)'
+    phev_vans_2026['vehicle_type'] = 'Vans (PHEV)'
+
+    # Load taxi/motorcycle data
+    taxi_phv_file = os.path.join(PROJECT_ROOT, "dfes", "DFES 2026", "UKPN-electric-taxi-phv-scenarios-LSOA UPDATED.xlsx")
+    if os.path.exists(taxi_phv_file):
+        df_taxi = pd.read_excel(taxi_phv_file, sheet_name='Taxi')
+        df_phv = pd.read_excel(taxi_phv_file, sheet_name='PHV')
+        df_taxi = df_taxi[df_taxi['Scenario World'] == 'HolisticTransition'].copy()
+        df_phv = df_phv[df_phv['Scenario World'] == 'HolisticTransition'].copy()
+
+        bev_taxi_2026 = df_taxi[df_taxi['Parameter'] == 'EV Taxis'][['LSOA21CD', 2026]].copy()
+        bev_phv_2026 = df_phv[df_phv['Parameter'] == 'EV PHVs'][['LSOA21CD', 2026]].copy()
+        bev_taxi_2026['vehicle_type'] = 'Taxis (BEV)'
+        bev_phv_2026['vehicle_type'] = 'PHVs (BEV)'
+    else:
+        bev_taxi_2026 = pd.DataFrame()
+        bev_phv_2026 = pd.DataFrame()
+
+    # Load motorcycle data
+    moto_file = os.path.join(PROJECT_ROOT, "dfes", "DFES 2026", "UKPN-electric-motorcycle-scenarios-LSOA-w-LAEP UPDATED.xlsx")
+    if os.path.exists(moto_file):
+        df_moto = pd.read_excel(moto_file, sheet_name='motorcycles')
+        df_moto = df_moto[df_moto['Scenario World'] == 'HolisticTransition'].copy()
+        bev_moto_2026 = df_moto[df_moto['Parameter'] == 'EV Motorcycles'][['LSOA21CD', 2026]].copy()
+        bev_moto_2026['vehicle_type'] = 'Motorcycles (BEV)'
+    else:
+        bev_moto_2026 = pd.DataFrame()
+
+    # Combine all vehicle types for 2026 (Mar 2027 anchor)
+    dfes_2026_lsoa = pd.concat([
+        bev_cars_2026, phev_cars_2026, bev_vans_2026, phev_vans_2026,
+        bev_taxi_2026, bev_phv_2026, bev_moto_2026
+    ], ignore_index=True)
+
+    # Map vehicle_type to BEV/PHEV
+    dfes_2026_lsoa['EV_Type'] = dfes_2026_lsoa['vehicle_type'].apply(lambda x: 'PHEV' if 'PHEV' in str(x) else 'BEV')
+
+    # Add DNO lookup
+    dno_lookup = pd.read_csv(
+        os.path.join(PROJECT_ROOT, "lookups", "LSOA to DNO.csv"),
+        encoding='utf-8-sig',
+        usecols=['LSOA21CD', 'Majority Licence area']
+    )
+    dno_lookup.columns = ['LSOA21CD', 'DNO']
+    dno_lookup = dno_lookup.drop_duplicates()
+
+    dfes_2026_lsoa = dfes_2026_lsoa.merge(dno_lookup, on='LSOA21CD', how='left')
+    dfes_2026_lsoa = dfes_2026_lsoa.rename(columns={2026: 'value'})
+
+    # Aggregate to DNO + EV_Type level
+    dfes_mar_2027_dno_agg = dfes_2026_lsoa.groupby(['DNO', 'EV_Type'])['value'].sum().reset_index()
+
+    # Create DFES Mar 2027 rows
+    for _, row in dfes_mar_2027_dno_agg.iterrows():
+        dfes_mar_2027_rows.append({
+            'DNO': row['DNO'],
+            'value': float(row['value']),
+            'time_grain': 'month',
+            'tech_type': 'EV',
+            'EV_Type': row['EV_Type'],
+            'forecast_source': 'DFES',
+            'forecast_scenario': 'HolisticTransition',
+            'dfes_pathway': 'Combined',
+            'building_block_id': None,
+            'metric': 'stock',
+            'observation_source': 'DFES',
+            'period': '2027-03',
+            'period_end': '2027-03-31',
+            'is_anchor': True,
+            'is_interpolated': False,
+            'source_year': 2026,
+            'anchor_date': '2027-03-31'
+        })
 
 # Build SMMT nowcast rows for April-August
 smmt_rows = []
@@ -192,10 +279,11 @@ for _, row in monthly_fuel.iterrows():
         'anchor_date': '2026-03-31'
     })
 
-# Keep all existing forecasts including Apr-Aug 2026 DFES
-# Only append SMMT nowcast data for Apr-Aug 2026
+# Keep all existing forecasts and append DFES Mar 2027 anchor + SMMT nowcast
+# This gives the JavaScript interpolation the Mar 2026 and Mar 2027 anchors needed for Apr-Aug
 monthly_forecast_complete = pd.concat([
     monthly_forecast,
+    pd.DataFrame(dfes_mar_2027_rows),
     pd.DataFrame(smmt_rows)
 ], ignore_index=True).sort_values(['period', 'DNO']).reset_index(drop=True)
 
