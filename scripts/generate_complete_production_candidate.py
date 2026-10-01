@@ -162,38 +162,9 @@ dfes_forecast_apr_plus = dfes_forecast_apr_plus[dfes_forecast_apr_plus['Scenario
 dfes_forecast_apr_plus['EV_Type'] = dfes_forecast_apr_plus['vehicle_type'].apply(lambda x: 'PHEV' if 'PHEV' in str(x).upper() else 'BEV')
 dfes_agg = dfes_forecast_apr_plus.groupby(['period', 'DNO', 'EV_Type', 'Scenario'])['forecast_value'].sum().reset_index()
 
-# Convert monthly additions to cumulative stock
-# Load Mar 2026 baseline to add to subsequent months
-mar_2026_data = monthly_forecast[(monthly_forecast['period'] == '2026-03') &
-                                  (monthly_forecast['forecast_source'] == 'DFES')]
-baseline_dict = {}
-for _, row in mar_2026_data.iterrows():
-    key = (row['DNO'], row['EV_Type'])
-    baseline_dict[key] = float(row['value'])
-
-# Sort by DNO, EV_Type, and period to calculate running cumulative per group
-dfes_agg = dfes_agg.sort_values(['DNO', 'EV_Type', 'period']).reset_index(drop=True)
-
-# Recalculate forecast_value as cumulative stock per DNO/EV_Type
-for dno in dfes_agg['DNO'].unique():
-    for ev_type in dfes_agg['EV_Type'].unique():
-        mask = (dfes_agg['DNO'] == dno) & (dfes_agg['EV_Type'] == ev_type)
-        indices = dfes_agg[mask].index
-
-        if len(indices) == 0:
-            continue
-
-        # Start from Mar 2026 baseline for this DNO/EV_Type
-        key = (dno, ev_type)
-        cumulative = baseline_dict.get(key, 0)
-
-        # Sort indices by period to ensure chronological order
-        sorted_idx = dfes_agg.loc[indices].sort_values('period').index
-
-        for idx in sorted_idx:
-            # Add this month's additions to get cumulative stock
-            cumulative += float(dfes_agg.at[idx, 'forecast_value'])
-            dfes_agg.at[idx, 'forecast_value'] = cumulative
+# DFES forecast values are interpolated stock values from the DFES processing script
+# They represent the estimated stock for each month, not additions
+# Use them as-is without further calculation
 
 dfes_forecast_rows = []
 for _, row in dfes_agg.iterrows():
@@ -246,12 +217,11 @@ for _, row in monthly_fuel.iterrows():
         'anchor_date': '2026-03-31'
     })
 
-# Filter out Apr-Aug 2026 DFES (High, Reduced Demand) from existing forecast
-# Keep only earlier periods and DFES HolisticTransition scenario
+# Filter out ALL Apr-Aug 2026 DFES from existing forecast (any scenario)
+# Will append fresh DFES Apr-Aug 2026 with HolisticTransition scenario
 monthly_forecast_filtered = monthly_forecast[
     ~((monthly_forecast['period'] >= '2026-04') &
-      (monthly_forecast['forecast_source'] == 'DFES') &
-      (monthly_forecast['forecast_scenario'].isin(['High', 'Reduced Demand'])))
+      (monthly_forecast['forecast_source'] == 'DFES'))
 ].copy()
 
 # Keep all existing forecasts and append DFES Apr 2026+ (HolisticTransition only) and SMMT nowcast
