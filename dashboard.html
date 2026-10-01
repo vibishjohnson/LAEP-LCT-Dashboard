@@ -2253,9 +2253,12 @@
 
             // Filter data from March 2025 onwards (include forecasts beyond latest actual)
             // Include SMMT nowcast, DFES, and NESO forecasts
+            const forecastRows = allRows.filter(r => r.dfes_monthly_benchmark !== null || r.neso_ht !== null || r.smmt !== null);
+            console.log("Rows with forecast data:", forecastRows.length, "Periods:", forecastRows.map(r => r.period));
             const latestForecastPeriod = Math.max(
-                ...allRows.filter(r => r.dfes_monthly_benchmark !== null || r.neso_ht !== null || r.smmt !== null).map(r => r.period)
+                ...forecastRows.map(r => r.period)
             ) || latestActualPeriod;
+            console.log("latestForecastPeriod:", latestForecastPeriod, "latestActualPeriod:", latestActualPeriod);
 
             const cumulativeData = allRows.filter(r => {
                 if (r.period < '2025-03') return false;
