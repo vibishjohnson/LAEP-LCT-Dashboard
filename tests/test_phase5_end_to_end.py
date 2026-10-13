@@ -7,6 +7,9 @@ Complete production workflow verification:
 - Candidate review → promotion → post-QA
 - Rollback verification
 - Dashboard data contract validation
+
+Writes go only to a temporary directory: a temporary SQLite database for SMMT entries and a disposable project tree
+for backups and rollback. Checks against the real project root are read-only.
 """
 
 import os
@@ -29,6 +32,8 @@ from data_manager.nowcast import NowcastEngine
 from data_manager.dft_update import DfTUpdateManager
 from data_manager.promotion import AtomicPromotion, ManualRollback
 from data_manager.dft_normalizer import DfTNormalizer
+from data_manager.promotion import C1_PROTECTED_FILES, PROMOTION_MANAGED_FILES, ProductionBackup
+from tests import promotion_fixtures as fx
 
 
 class TestPhase5EndToEnd(unittest.TestCase):
@@ -47,11 +52,14 @@ class TestPhase5EndToEnd(unittest.TestCase):
             shutil.rmtree(cls.test_dir)
 
     def setUp(self):
-        """Initialize test fixtures."""
-        self.db = Database()
-        self.smmt_mgr = SMmtManager()
-        self.promoter = AtomicPromotion(PROJECT_ROOT)
-        self.rollback_mgr = ManualRollback(PROJECT_ROOT)
+        """Initialize test fixtures (temporary database and disposable project; never the real ones)."""
+        self.db_path = os.path.join(self.test_dir, f"database_{self._testMethodName}.db")
+        self.db = Database(self.db_path)
+        self.smmt_mgr = SMmtManager(self.db_path)
+        self.sandbox = os.path.join(self.test_dir, f"project_{self._testMethodName}")
+        fx.make_project(self.sandbox)
+        self.promoter = AtomicPromotion(self.sandbox)
+        self.rollback_mgr = ManualRollback(self.sandbox)
 
     def test_01_complete_smmt_nowcast_workflow(self):
         """Complete SMMT entry and nowcast generation workflow."""
@@ -101,7 +109,7 @@ class TestPhase5EndToEnd(unittest.TestCase):
         """Backup creation and availability listing."""
         from data_manager.promotion import ProductionBackup
 
-        backup_mgr = ProductionBackup(PROJECT_ROOT)
+        backup_mgr = ProductionBackup(self.sandbox)
 
         # Create test backup
         success, backup_id = backup_mgr.create_backup(
@@ -148,6 +156,12 @@ class TestPhase5EndToEnd(unittest.TestCase):
                 "integration/hp_metadata.json",
             ]
         }
+
+        # EV actuals are C1-protected: present in production but never managed by admin promotion
+        self.assertEqual(set(C1_PROTECTED_FILES), {f for f in expected_files['ev_changed'] if 'ev_actuals' in f})
+        self.assertEqual(set(AtomicPromotion.EV_CHANGED) | set(AtomicPromotion.SHARED_METADATA_CHANGED),
+                         set(PROMOTION_MANAGED_FILES))
+        self.assertFalse(set(C1_PROTECTED_FILES) & set(PROMOTION_MANAGED_FILES))
 
         # Check EV_CHANGED files
         for file_path in expected_files['ev_changed']:
@@ -249,17 +263,14 @@ class TestPhase5EndToEnd(unittest.TestCase):
 
     def test_08_rollback_pre_restore_backup(self):
         """Verify rollback creates pre-restore backup."""
-        # This test verifies the rollback safety mechanism
-        self.rollback_mgr = ManualRollback(PROJECT_ROOT)
+        # Real rollback in the disposable project: a pre-restore backup is created first
+        success, backup_id = ProductionBackup(self.sandbox).create_backup("run_e2e", "2026-03-31", "2026-03-31")
+        self.assertTrue(success, backup_id)
         backups_before = len(self.rollback_mgr.list_available_backups())
-
-        # Conceptual rollback (without actual restore to avoid production impact)
-        # Would create backup for current state before restoring
-
+        ok, msg = self.rollback_mgr.rollback(backup_id)
+        self.assertTrue(ok, msg)
         backups_after = len(self.rollback_mgr.list_available_backups())
-
-        # Backup list should not change in this test
-        self.assertGreaterEqual(backups_after, backups_before)
+        self.assertEqual(backups_after, backups_before + 1)
 
     def test_09_promotion_safety_checks(self):
         """Verify all promotion safety checks are in place."""
