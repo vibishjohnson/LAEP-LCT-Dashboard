@@ -561,62 +561,12 @@
         let showDfes = true;
         let showNesoHt = true;
         let showNesoHtb = true;
-        // Temporary demo display cap for EV charts only. Does not alter loaded forecast files.
-        // EV chart window: March 2025 through latest observed/provisional data
-        const EV_DISPLAY_START = '2025-03-01';
-
-        // Helper: Calculate EV display range from ACTUAL and SMMT rows ONLY
-        // Excludes forecasts (DFES, HT, HTB) which extend far into the future
-        function getEvDisplayRange(actualRows = [], smmtRows = []) {
-            // Find latest DFT actual
-            const actualPeriods = actualRows
-                .filter(r => r.comparison_point_type === 'Observation')
-                .map(r => r.period)
-                .filter(p => p);
-
-            const latestDftActual = actualPeriods.length > 0
-                ? actualPeriods.reduce((latest, p) => p > latest ? p : latest)
-                : '2026-03';
-
-            // Find latest SMMT nowcast
-            const smtmPeriods = smmtRows
-                .filter(r => r.smmt !== null && r.smmt !== undefined)
-                .map(r => r.period)
-                .filter(p => p);
-
-            const latestSmmt = smtmPeriods.length > 0
-                ? smtmPeriods.reduce((latest, p) => p > latest ? p : latest)
-                : latestDftActual;
-
-            // Latest observed period is max of actual and SMMT only
-            const latestObserved = latestSmmt > latestDftActual ? latestSmmt : latestDftActual;
-
-            console.log("EV Display Range:");
-            console.log("  Latest DFT actual:", latestDftActual);
-            console.log("  Latest SMMT:", latestSmmt);
-            console.log("  Latest observed:", latestObserved);
-
-            // Convert YYYY-MM to YYYY-MM-DD (last day of month)
-            const [year, month] = latestObserved.split('-').map(Number);
-            const nextMonth = new Date(year, month, 1);
-            const lastDay = new Date(nextMonth - 1).getDate();
-            const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-            return {
-                start: EV_DISPLAY_START,
-                end: endDate
-            };
-        }
+        // 31 March 2025 DFES anchor: every EV series is measured from this period
+        const EV_BASELINE_PERIOD = '2025-03';
 
         // Existing HP visible window
         const HP_DISPLAY_START_PERIOD = '2025-04';
         const HP_DISPLAY_END_PERIOD = '2026-03';
-
-        function evDemoDisplayRows(rows) {
-            // Filter EV data: March 2025 through August 2026 (safe hardcoded for now)
-            // Will be overridden by chart-specific range logic
-            return rows.filter(d => d.period >= '2025-03' && d.period <= '2026-08');
-        }
 
         function hpDisplayRows(rows) {
             return rows.filter(d => d.period >= HP_DISPLAY_START_PERIOD && d.period <= HP_DISPLAY_END_PERIOD);
@@ -1817,20 +1767,18 @@
         // Charts
         function updateCharts() {
             if (currentTech === 'EV Vehicles') {
-                updateEvCumulativeChart();
                 document.getElementById('evCumulativeChartContainer').style.display = 'block';
-            } else {
-                document.getElementById('evCumulativeChartContainer').style.display = 'none';
+                updateEvCharts();
+                return;
             }
+            document.getElementById('evCumulativeChartContainer').style.display = 'none';
             updateMonthlyChart();
             updateStockChart();
         }
 
         function updateMonthlyChart() {
             let monthlyData = filteredData.sort((a, b) => a.period.localeCompare(b.period));
-            if (currentTech === 'EV Vehicles') {
-                monthlyData = evDemoDisplayRows(monthlyData);
-            } else if (currentTech === 'Heat Pump') {
+            if (currentTech === 'Heat Pump') {
                 monthlyData = hpDisplayRows(monthlyData);
             }
             const periods = monthlyData.map(d => d.period);
@@ -1917,57 +1865,6 @@
                 yAxisTitle = 'Capacity (kW)';
                 document.getElementById('monthlyCaveat').textContent = 'Actual capacity reflects installations with known capacity data only. DFES implied monthly capacity represents annual additions divided by 12.';
 
-            } else if (currentTech === 'EV Vehicles') {
-                chartTitle = 'EV Vehicle Stock';
-                const evTraces = [];
-                if (showActual) {
-                    evTraces.push({
-                        x: periodLabels,
-                        y: monthlyData.map(d => d.comparison_point_type === 'Observation' ? d.actual_install_count : null),
-                        name: 'Actual',
-                        type: 'scatter',
-                        mode: 'lines+markers',
-                        connectgaps: false,
-                        line: { color: '#9C27B0', width: 3 },
-                        marker: { size: 8 }
-                    });
-                }
-                if (showDfes) {
-                    evTraces.push({
-                        x: periodLabels,
-                        y: monthlyData.map(d => d.dfes_monthly_benchmark),
-                        name: 'DFES',
-                        type: 'scatter',
-                        mode: 'lines',
-                        line: { color: '#FF9800', width: 2, dash: 'dash' }
-                    });
-                }
-                if (showNesoHt) {
-                    evTraces.push({
-                        x: periodLabels,
-                        y: monthlyData.map(d => d.neso_ht),
-                        name: 'UKPN — Holistic Transition before tRESP',
-                        type: 'scatter',
-                        mode: 'lines',
-                        line: { color: '#1565C0', width: 2 }
-                    });
-                }
-                if (showNesoHtb) {
-                    evTraces.push({
-                        x: periodLabels,
-                        y: monthlyData.map(d => d.neso_htb),
-                        name: 'UKPN — Holistic Transition Basic before tRESP',
-                        type: 'scatter',
-                        mode: 'lines',
-                        line: { color: '#00838F', width: 2, dash: 'dot' }
-                    });
-                }
-                actualTrace = evTraces[0] || { x: periodLabels, y: [], type: 'scatter', mode: 'lines' };
-                dfesTrace = null;
-                window._extraEvTraces = evTraces.slice(1);
-                yAxisTitle = 'Vehicles';
-                document.getElementById('monthlyCaveat').textContent = 'Actuals are genuine quarter-end stock observations and are not interpolated. Forecast lines are independent dated month-end trajectories and are not rebased to actuals. Latest actual period is derived from the source data.';
-
             } else if (currentTech === 'EV Chargers') {
                 chartTitle = 'Monthly EV Charger Installations';
                 actualTrace = {
@@ -1985,9 +1882,6 @@
             }
 
             let traces = dfesTrace ? [actualTrace, dfesTrace] : [actualTrace];
-            if (currentTech === 'EV Vehicles' && window._extraEvTraces) {
-                traces = [actualTrace, ...window._extraEvTraces];
-            }
             if (currentTech === 'Heat Pump' && window._extraHpTraces) {
                 traces = [actualTrace, ...window._extraHpTraces];
             }
@@ -2009,9 +1903,7 @@
 
         function updateStockChart() {
             let stockData = filteredData.sort((a, b) => a.period.localeCompare(b.period));
-            if (currentTech === 'EV Vehicles') {
-                stockData = evDemoDisplayRows(stockData);
-            } else if (currentTech === 'Heat Pump') {
+            if (currentTech === 'Heat Pump') {
                 stockData = hpDisplayRows(stockData);
             }
             const periods = stockData.map(d => d.period);
@@ -2097,63 +1989,6 @@
                 yAxisTitle = 'Installed Capacity (kW)';
                 caveat = 'Actual capacity position is built from opening capacity plus cumulative monthly additions. Data reflects known-capacity installations only.';
 
-            } else if (currentTech === 'EV Vehicles') {
-                chartTitle = 'EV Vehicle Stock Trajectory';
-                const evTraces = [];
-                if (showActual) {
-                    const estimatedStockY = stockData.map(d => {
-                        if (d.period === '2025-03') {
-                            return d.dfes_monthly_benchmark;
-                        }
-                        return d.comparison_point_type === 'Observation' ? d.actual_install_count : null;
-                    });
-                    evTraces.push({
-                        x: periods,
-                        y: estimatedStockY,
-                        name: 'Estimated EV stock',
-                        type: 'scatter',
-                        mode: 'lines+markers',
-                        connectgaps: false,
-                        line: { color: '#9C27B0', width: 3 },
-                        marker: { size: 8 }
-                    });
-                }
-                if (showDfes) {
-                    evTraces.push({
-                        x: periods,
-                        y: stockData.map(d => d.dfes_monthly_benchmark),
-                        name: 'DFES',
-                        type: 'scatter',
-                        mode: 'lines',
-                        line: { color: '#FF9800', width: 2, dash: 'dash' }
-                    });
-                }
-                if (showNesoHt) {
-                    evTraces.push({
-                        x: periods,
-                        y: stockData.map(d => d.neso_ht),
-                        name: 'UKPN — Holistic Transition before tRESP',
-                        type: 'scatter',
-                        mode: 'lines',
-                        line: { color: '#1565C0', width: 2 }
-                    });
-                }
-                if (showNesoHtb) {
-                    evTraces.push({
-                        x: periods,
-                        y: stockData.map(d => d.neso_htb),
-                        name: 'UKPN — Holistic Transition Basic before tRESP',
-                        type: 'scatter',
-                        mode: 'lines',
-                        line: { color: '#00838F', width: 2, dash: 'dot' }
-                    });
-                }
-                actualTrace = evTraces[0] || { x: periods, y: [], type: 'scatter', mode: 'lines' };
-                dfesTrace = null;
-                window._extraEvStockTraces = evTraces.slice(1);
-                yAxisTitle = 'Vehicle Stock';
-                caveat = 'Actuals remain quarter-end observations. DFES and UKPN lines are independent monthly interpolated stock trajectories from 31 March financial-year anchors. Forecasts are not rebased to actuals.';
-
             } else if (currentTech === 'EV Chargers') {
                 chartTitle = 'Cumulative Charger Installations Since 1 April 2025';
 
@@ -2174,25 +2009,11 @@
             }
 
             let traces = dfesTrace ? [actualTrace, dfesTrace] : [actualTrace];
-            if (currentTech === 'EV Vehicles' && window._extraEvStockTraces) {
-                traces = [actualTrace, ...window._extraEvStockTraces];
-            }
             if (currentTech === 'Heat Pump' && window._extraHpStockTraces) {
                 traces = [actualTrace, ...window._extraHpStockTraces];
             }
 
-            // For EV charts, use dynamic x-axis range based on latest observed/provisional data
             const xaxisConfig = { title: currentTech === 'EV Vehicles' ? 'Period' : 'Month' };
-            if (currentTech === 'EV Vehicles') {
-                // Separate actual vs SMMT for range calculation (use stockData which has been filtered)
-                const actualForRange = stockData.filter(r => r.comparison_point_type === 'Observation');
-                const smmtForRange = stockData.filter(r => r.smmt !== null && r.smmt !== undefined);
-                const evRange = getEvDisplayRange(actualForRange, smmtForRange);
-                xaxisConfig.type = 'date';
-                xaxisConfig.range = [evRange.start, evRange.end];
-                xaxisConfig.tick0 = evRange.start;
-                xaxisConfig.dtick = 'M3';  // Quarterly ticks
-            }
 
             const layout = {
                 title: chartTitle,
@@ -2209,241 +2030,175 @@
             document.getElementById('stockCaveat').textContent = caveat;
         }
 
-        // Interpolate forecast values between annual anchors using 12 equal monthly steps
-        // March 2026 (offset=0) to March 2027 (offset=12)
-        function interpolateForecastMonthly(val2026Mar, val2027Mar) {
-            const months = ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03'];
-            const interpolated = [];
+        // EV Vehicles: filteredData already holds the selected geography and EV subtype
+        // (filterIntegratedEv* + evTypeMatch + buildEvRows). One selected series is built
+        // from it and all three EV charts are derived from that single object.
+        function evPeriodDate(period) {
+            return `${period}-01`;
+        }
 
-            const totalChange = val2027Mar - val2026Mar;
-            for (let i = 0; i < months.length; i++) {
-                const monthOffset = i + 1; // April=1, May=2, ..., March2027=12
-                const progress = monthOffset / 12; // 1/12 for April, 2/12 for May, etc.
-                const value = val2026Mar + (totalChange * progress);
-                interpolated.push({ period: months[i], value: Math.round(value) });
+        // March 2025 opening stock: Network areas use the selected area's DFES stock as an opening anchor;
+        // LA, LAEP and any other sub-network level use the selected area's calculated March 2025 EV stock.
+        function evOpeningBaseline(rows) {
+            const row = rows.find(r => r.period === EV_BASELINE_PERIOD);
+            if (currentGeographyLevel === 'Network') {
+                return { source: 'dfes', value: row ? row.dfes_monthly_benchmark : null };
             }
-            return interpolated;
+            return { source: 'actual', value: row && row.comparison_point_type === 'Observation' ? row.actual_install_count : null };
         }
 
-        // Independent EV trace builders (no merged dependency)
-        function buildEvActualTrace(actualRows) {
-            const byPeriod = {};
-            actualRows.forEach(row => {
-                if (!byPeriod[row.period]) {
-                    byPeriod[row.period] = { period: row.period, stock: 0 };
+        function evEmptyMessage(rows) {
+            if (rows.length === 0) return 'No EV data available for this selection';
+            return evOpeningBaseline(rows).source === 'dfes'
+                ? 'No DFES March 2025 opening stock available for this selection'
+                : 'No calculated March 2025 EV stock available for this selection';
+        }
+
+        function buildEvSelectedSeries(rows) {
+            const sorted = [...rows].sort((a, b) => a.period.localeCompare(b.period));
+            const baseline = evOpeningBaseline(sorted);
+            if (baseline.value == null) return null;
+
+            const observed = [{ period: EV_BASELINE_PERIOD, value: baseline.value }];
+            sorted.forEach(r => {
+                if (r.period > EV_BASELINE_PERIOD && r.comparison_point_type === 'Observation' && r.actual_install_count != null) {
+                    observed.push({ period: r.period, value: r.actual_install_count });
                 }
-                byPeriod[row.period].stock += (parseFloat(row.install_count) || 0);
             });
-            const points = Object.values(byPeriod).sort((a, b) => a.period.localeCompare(b.period));
-            return {
-                x: points.map(p => `${p.period}-01`),
-                y: points.map(p => p.stock)
-            };
-        }
+            const latestActualPeriod = observed[observed.length - 1].period;
 
-        function buildEvSmmtTrace() {
-            // Fixed SMMT cumulative stock values (March anchor + Apr-Aug nowcast)
-            return {
-                x: ['2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01'],
-                y: [908964, 930198, 953579, 985615, 1009792, 1023403]
-            };
-        }
-
-        function buildEvForecastTrace(forecastRows, forecastSource, stockField = 'value') {
-            const filtered = forecastRows.filter(r => r.forecast_source === forecastSource);
-            const byPeriod = {};
-            filtered.forEach(row => {
-                if (!byPeriod[row.period]) {
-                    byPeriod[row.period] = { period: row.period, stock: 0 };
-                }
-                const val = parseFloat(row[stockField]) || parseFloat(row.value) || 0;
-                byPeriod[row.period].stock += val;
+            const windowRows = sorted.filter(r => r.period >= EV_BASELINE_PERIOD && r.period <= latestActualPeriod);
+            const forecast = (field, name, show, line) => ({
+                name, show, line,
+                points: windowRows.filter(r => r[field] != null).map(r => ({ period: r.period, value: r[field] }))
             });
 
-            // For Apr-Aug 2026, interpolate between Mar 2026 and Mar 2027 if missing
-            const mar2026 = byPeriod['2026-03'];
-            const mar2027 = byPeriod['2027-03'];
-            if (mar2026 && mar2027) {
-                const interpolated = interpolateForecastMonthly(mar2026.stock, mar2027.stock);
-                interpolated.forEach(point => {
-                    if (!byPeriod[point.period]) {
-                        byPeriod[point.period] = { period: point.period, stock: point.value };
-                    }
-                });
-            }
-
-            const points = Object.values(byPeriod).sort((a, b) => a.period.localeCompare(b.period));
             return {
-                x: points.map(p => `${p.period}-01`),
-                y: points.map(p => p.stock)
+                observed,
+                baselineSource: baseline.source,
+                latestActualPeriod,
+                forecasts: [
+                    forecast('dfes_monthly_benchmark', 'DFES', showDfes, { color: '#FF9800', width: 2, dash: 'dash' }),
+                    forecast('neso_ht', 'UKPN — Holistic Transition before tRESP', showNesoHt, { color: '#1565C0', width: 2 }),
+                    forecast('neso_htb', 'UKPN — Holistic Transition Basic before tRESP', showNesoHtb, { color: '#00838F', width: 2, dash: 'dot' })
+                ]
             };
         }
 
-        function toCumulativeTrace(stockTrace, baseline) {
-            if (!stockTrace || !stockTrace.y || stockTrace.y.length === 0) {
-                return { x: [], y: [] };
-            }
-            return {
-                x: stockTrace.x,
-                y: stockTrace.y.map(stock => Number.isFinite(stock) ? stock - baseline : null)
-            };
+        // Each series is measured from its own March 2025 stock
+        function evCumulativePoints(points) {
+            if (points.length === 0 || points[0].period !== EV_BASELINE_PERIOD) return [];
+            const baseline = points[0].value;
+            return points.map(p => ({ period: p.period, value: p.value - baseline }));
         }
 
-        function filterTraceToRange(trace, start, end) {
-            if (!trace || !trace.x || trace.x.length === 0) {
-                return { x: [], y: [] };
+        // Change between consecutive observation dates, so forecasts use the same quarter boundaries as actuals
+        function evQuarterlyChangePoints(points, boundaryPeriods) {
+            const byPeriod = {};
+            points.forEach(p => { byPeriod[p.period] = p.value; });
+            const changes = [];
+            for (let i = 1; i < boundaryPeriods.length; i++) {
+                const cur = byPeriod[boundaryPeriods[i]];
+                const prev = byPeriod[boundaryPeriods[i - 1]];
+                changes.push({ period: boundaryPeriods[i], value: cur != null && prev != null ? cur - prev : null });
             }
-            const indices = trace.x.map((d, i) => d >= start && d <= end ? i : -1).filter(i => i >= 0);
-            return {
-                x: indices.map(i => trace.x[i]),
-                y: indices.map(i => trace.y[i])
-            };
+            return changes;
         }
 
-        function updateEvCumulativeChart() {
-            // Build EV integration data
-            let actualData = [], forecastData = [];
+        const EV_OBSERVED_STYLE = { type: 'scatter', mode: 'lines+markers', connectgaps: false, line: { color: '#9C27B0', width: 3 }, marker: { size: 8 } };
 
-            if (currentArea === 'UKPN Total') {
-                actualData = evActualDno.filter(r => ['EPN', 'LPN', 'SPN'].includes(r.DNO) && evTypeMatch(r.EV_Type));
-                forecastData = evForecastDno.filter(r => ['EPN', 'LPN', 'SPN'].includes(r.DNO) && evTypeMatch(r.EV_Type));
-            } else if (currentArea && currentArea !== 'UKPN Total') {
-                // LA level
-                actualData = evActualLa.filter(r => r.LA === currentLa && evTypeMatch(r.EV_Type));
-                forecastData = evForecastLa.filter(r => r.LA === currentLa && evTypeMatch(r.EV_Type));
-            }
+        function evTrace(points, name, style) {
+            return Object.assign({ x: points.map(p => evPeriodDate(p.period)), y: points.map(p => p.value), name }, style);
+        }
 
-            // Baseline for cumulative calculations
-            const BASELINE = 661867; // March 2025 DFES baseline
-
-            // Display range: March 2025 to August 2026
-            const displayStart = '2025-03-01';
-            const displayEnd = '2026-08-31';
-
-            // Build independent traces directly from source data
-            const actualStockTrace = buildEvActualTrace(actualData);
-            const smmtStockTrace = buildEvSmmtTrace();
-            const dfesStockTrace = buildEvForecastTrace(forecastData, 'DFES');
-
-            // Filter HT and HTB by scenario
-            const htData = forecastData.filter(r => r.forecast_scenario === 'HolisticTransition');
-            const htbData = forecastData.filter(r => r.forecast_scenario === 'HolisticTransitionBasic');
-            const htStockTrace = buildEvForecastTrace(htData, 'NESO');
-            const htbStockTrace = buildEvForecastTrace(htbData, 'NESO');
-
-            // Convert to cumulative (stock - baseline)
-            const actualCumulativeTrace = toCumulativeTrace(actualStockTrace, BASELINE);
-            const smmtCumulativeTrace = toCumulativeTrace(smmtStockTrace, BASELINE);
-            const defesCumulativeTrace = toCumulativeTrace(dfesStockTrace, BASELINE);
-            const htCumulativeTrace = toCumulativeTrace(htStockTrace, BASELINE);
-            const htbCumulativeTrace = toCumulativeTrace(htbStockTrace, BASELINE);
-
-            // Filter to display range
-            const actualForDisplay = filterTraceToRange(actualCumulativeTrace, displayStart, displayEnd);
-            const smmtForDisplay = filterTraceToRange(smmtCumulativeTrace, displayStart, displayEnd);
-            const defesForDisplay = filterTraceToRange(defesCumulativeTrace, displayStart, displayEnd);
-            const htForDisplay = filterTraceToRange(htCumulativeTrace, displayStart, displayEnd);
-            const htbForDisplay = filterTraceToRange(htbCumulativeTrace, displayStart, displayEnd);
-
-            // Create traces
-            const traces = [];
-
-            if (showActual && actualForDisplay.y.length > 0) {
-                traces.push({
-                    x: actualForDisplay.x,
-                    y: actualForDisplay.y,
-                    name: 'Observed cumulative additions',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    connectgaps: false,
-                    line: { color: '#9C27B0', width: 3, shape: 'linear' },
-                    marker: { size: 8 }
-                });
-            }
-
-            if (smmtForDisplay.y.length > 0) {
-                traces.push({
-                    x: smmtForDisplay.x,
-                    y: smmtForDisplay.y,
-                    name: 'SMMT Nowcast cumulative additions',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    connectgaps: false,
-                    line: { color: '#4CAF50', width: 2, dash: 'dot', shape: 'linear' },
-                    marker: { size: 6 }
-                });
-            }
-
-            if (showDfes && defesForDisplay.y.length > 0) {
-                traces.push({
-                    x: defesForDisplay.x,
-                    y: defesForDisplay.y,
-                    name: 'DFES cumulative additions',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    connectgaps: false,
-                    line: { color: '#FF9800', width: 2, dash: 'dash', shape: 'linear' },
-                    marker: { size: 6 }
-                });
-            }
-
-            if (showNesoHt && htForDisplay.y.length > 0) {
-                traces.push({
-                    x: htForDisplay.x,
-                    y: htForDisplay.y,
-                    name: 'HT cumulative additions',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    connectgaps: false,
-                    line: { color: '#1565C0', width: 2, shape: 'linear' },
-                    marker: { size: 6 }
-                });
-            }
-
-            if (showNesoHtb && htbForDisplay.y.length > 0) {
-                traces.push({
-                    x: htbForDisplay.x,
-                    y: htbForDisplay.y,
-                    name: 'HTB cumulative additions',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    connectgaps: false,
-                    line: { color: '#00838F', width: 2, dash: 'dot', shape: 'linear' },
-                    marker: { size: 6 }
-                });
-            }
-
+        function evDateLayout(yAxisTitle, series, emptyMessage) {
             const layout = {
                 title: '',
-                xaxis: {
-                    title: 'Period',
-                    type: 'date',
-                    tickformat: '%b %Y',
-                    range: [displayStart, displayEnd],
-                    tick0: displayStart,
-                    dtick: 'M3'
-                },
-                yaxis: { title: 'Cumulative Additions (Vehicles)' },
+                xaxis: { title: 'Period', type: 'date', tickformat: '%b %Y', tick0: evPeriodDate(EV_BASELINE_PERIOD), dtick: 'M3' },
+                yaxis: { title: yAxisTitle },
                 hovermode: 'x unified',
                 margin: { l: 60, r: 40, t: 40, b: 40 },
                 showlegend: true,
-                legend: { x: 0, y: -0.2, orientation: 'h' },
-                shapes: [
-                    {
-                        type: 'line',
-                        x0: '2025-03-01',
-                        x1: '2026-08-01',
-                        xref: 'x',
-                        y0: 0,
-                        y1: 0,
-                        yref: 'y',
-                        line: { color: 'rgba(128, 128, 128, 0.5)', width: 1, dash: 'dash' }
-                    }
-                ]
+                legend: { x: 0, y: -0.2, orientation: 'h' }
             };
+            if (!series) {
+                layout.annotations = [{ text: emptyMessage, xref: 'paper', yref: 'paper', x: 0.5, y: 0.5, showarrow: false }];
+            }
+            return layout;
+        }
 
-            Plotly.newPlot('evCumulativeChart', traces, layout, { responsive: true });
-            document.getElementById('evCumulativeCaveat').textContent = 'EV stock observations are available quarterly. Cumulative net stock additions are measured relative to the 31 March 2025 baseline. The estimated series uses the DFES stock position at 31 March 2025 as its methodological anchor, followed by estimated quarter-end observations from June 2025. No monthly EV actuals are inferred. Forecast scenarios are shown relative to their respective 31 March 2025 stock positions.';
+        function updateEvCharts() {
+            const series = buildEvSelectedSeries(filteredData);
+            const emptyMessage = series ? '' : evEmptyMessage(filteredData);
+            updateEvCumulativeChart(series, emptyMessage);
+            updateEvQuarterlyChangeChart(series, emptyMessage);
+            updateEvStockChart(series, emptyMessage);
+        }
+
+        function updateEvCumulativeChart(series, emptyMessage) {
+            const traces = [];
+            if (series) {
+                if (showActual) {
+                    traces.push(evTrace(evCumulativePoints(series.observed), 'Estimated cumulative net stock additions', EV_OBSERVED_STYLE));
+                }
+                series.forecasts.filter(f => f.show).forEach(f => {
+                    traces.push(evTrace(evCumulativePoints(f.points), f.name, { type: 'scatter', mode: 'lines', line: f.line }));
+                });
+            }
+            Plotly.newPlot('evCumulativeChart', traces, evDateLayout('Cumulative Net Stock Additions (Vehicles)', series, emptyMessage), { responsive: true });
+            document.getElementById('evCumulativeChartTitle').textContent = getDisplayTitle('EV Cumulative Net Stock Additions Since March 2025');
+            let caveat = `${emptyMessage}.`;
+            if (series && series.baselineSource === 'dfes') {
+                caveat = `The estimated series starts from the selected network area's DFES stock at 31 March 2025 (an opening anchor, not a DVLA-observed value), followed by calculated quarter-end EV stock estimates, so it is not actual-to-actual growth. DFES, Holistic Transition and Holistic Transition Basic are each measured from their own 31 March 2025 stock. No monthly EV actuals are inferred. Shown to the latest actual observation (${series.latestActualPeriod}).`;
+            } else if (series) {
+                caveat = `The estimated series uses calculated EV stock estimates for every quarter, including 31 March 2025, so it shows actual-to-actual estimated growth. DFES, Holistic Transition and Holistic Transition Basic are each measured from their own 31 March 2025 stock and show forecast growth for comparison. No monthly EV actuals are inferred. Shown to the latest actual observation (${series.latestActualPeriod}).`;
+            }
+            document.getElementById('evCumulativeCaveat').textContent = caveat;
+        }
+
+        function updateEvQuarterlyChangeChart(series, emptyMessage) {
+            const traces = [];
+            if (series) {
+                const boundaries = series.observed.map(p => p.period);
+                if (showActual) {
+                    traces.push(evTrace(evQuarterlyChangePoints(series.observed, boundaries), 'Estimated quarterly net stock change', { type: 'bar', marker: { color: '#9C27B0' } }));
+                }
+                series.forecasts.filter(f => f.show).forEach(f => {
+                    traces.push(evTrace(evQuarterlyChangePoints(f.points, boundaries), f.name, { type: 'bar', marker: { color: f.line.color } }));
+                });
+            }
+            const layout = evDateLayout('Net Stock Change (Vehicles)', series, emptyMessage);
+            layout.barmode = 'group';
+            Plotly.newPlot('monthlyChart', traces, layout, { responsive: true });
+            document.getElementById('monthlyChartTitle').textContent = getDisplayTitle('EV Quarterly Net Stock Change');
+            let caveat = `${emptyMessage}.`;
+            if (series && series.baselineSource === 'dfes') {
+                caveat = 'Change in stock between consecutive quarter-end points. The first interval (to June 2025) is measured against the DFES 31 March 2025 opening anchor; later intervals are between calculated EV stock estimates. Forecast changes use each forecast\'s own stock over the same quarter boundaries. No monthly EV actuals are inferred.';
+            } else if (series) {
+                caveat = 'Change between consecutive quarter-end calculated EV stock estimates, starting from the calculated 31 March 2025 stock. Forecast changes use each forecast\'s own stock over the same quarter boundaries. No monthly EV actuals are inferred.';
+            }
+            document.getElementById('monthlyCaveat').textContent = caveat;
+        }
+
+        function updateEvStockChart(series, emptyMessage) {
+            const traces = [];
+            if (series) {
+                if (showActual) {
+                    traces.push(evTrace(series.observed, 'Estimated EV stock', EV_OBSERVED_STYLE));
+                }
+                series.forecasts.filter(f => f.show).forEach(f => {
+                    traces.push(evTrace(f.points, f.name, { type: 'scatter', mode: 'lines', line: f.line }));
+                });
+            }
+            Plotly.newPlot('stockChart', traces, evDateLayout('Vehicle Stock', series, emptyMessage), { responsive: true });
+            document.getElementById('stockChartTitle').textContent = getDisplayTitle('Installed Stock Trajectory');
+            let caveat = `${emptyMessage}.`;
+            if (series && series.baselineSource === 'dfes') {
+                caveat = `March 2025 is the selected network area's DFES stock (an opening anchor, not a DVLA-observed value); later points are calculated quarter-end EV stock estimates. DFES and UKPN lines are independent monthly interpolated stock trajectories and are not rebased to actuals. Shown to the latest actual observation (${series.latestActualPeriod}).`;
+            } else if (series) {
+                caveat = `All points, including March 2025, are calculated quarter-end EV stock estimates. DFES and UKPN lines are independent monthly interpolated stock trajectories and are not rebased to actuals. Shown to the latest actual observation (${series.latestActualPeriod}).`;
+            }
+            document.getElementById('stockCaveat').textContent = caveat;
         }
 
         // LSOA Search functionality
