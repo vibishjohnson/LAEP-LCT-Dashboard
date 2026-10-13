@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to local_paths.json in this folder (git-ignored) and fill in, or set the environment variables LCT_DASHBOARD_ROOT, LCT_HP_PROJECT and C1_RUNNER_DIR instead. For the operational runner, place local_paths.json in the folder that contains dashboard_integration/.",
+  "dashboard_root": "C:/path/to/dashboard-repository",
+  "hp_project": "C:/path/to/heat-pump-project",
+  "operational_runner_dir": "C:/path/to/ev-project/dashboard_integration"
+}

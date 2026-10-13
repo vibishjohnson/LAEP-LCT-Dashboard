@@ -1,0 +1,157 @@
+{
+  "changed_files": {
+    "publish_guard.py": "new: guarded forecast publishing, never publishes ev_actuals_*",
+    "run_integration.py": "publish block replaced by publish_guard.publish(); import added"
+  },
+  "copied_at": "2026-10-13",
+  "current_sha256": {
+    "__init__.py": "c7148237b0d373c73c2a689bc7b1e34ebb1980746bcc9e6fce034653595d9c48",
+    "actuals.py": "8b1753581ad447e78f3973f8f276a8b916acb42da0305becdfa90dff80f5ff55",
+    "aggregate.py": "ce2ade984f4af6877a4b20237838661566c10e5f8175ba88bcabf5b63aeabd33",
+    "anchors.py": "47226dffad9aef0275574d505c3cfb0ea4ecf8c3b78abbbef2fd4f3c5e867f06",
+    "config.py": "fbcec6d51b0ce95dc1daa80f2b6e50b32f56953381f667830f32412be60cde89",
+    "geography.py": "fc1ee573753e87f6bffb460c5db812c28ac4b2d3cfe3b80b5e589ab98645b891",
+    "hp_actuals.py": "be4fe7cf07f9cb9bf81c6a38b331a5d0d442bfc7aa9d655b548f1ac9577ee357",
+    "hp_anchors.py": "5c308ee27cec9fd433cbd5a818eb91866b8b4775e70e129af13d98b23262473a",
+    "hp_config.py": "a2a001c4cbadf239011a9e3665c6a7bf564485b0d4aa72fc51ddfc8e746038f2",
+    "hp_qa.py": "10dbd0f72932718a97fb6e3178bef6fb22b067e527919f9aa4771028d4afaf6e",
+    "hp_run_integration.py": "467341a4d65290bf051fd5fc461d80bce7dfaea722a528328c2230b88fefcb13",
+    "interpolate.py": "f4ed7c4d1c5c63151fa02e411b48bd609f8798d9247ca79c1c8602b48966d0fa",
+    "publish_guard.py": "bfe2cce8e48256d1f5cb3d89ac038ce6d46353f162898c17ecc3dd01b5f4a028",
+    "qa.py": "b97261f033fd7f4f908e51935167ad3b3c3fda593b8d99f82b81e6b5a0ff8ff8",
+    "run_integration.py": "18a1c0a6167de9c5027a81bcf62413d4f13909513a769e2e9f7adbd44cfc162e"
+  },
+  "current_sha256_eol_normalised": {
+    "__init__.py": "e52b92eb69060a40631d2decb092a4e544abf627f6bbe86be3cd1bcf8abef4c8",
+    "actuals.py": "f5504c12ab60561e42999d28569d35f3d99380e7f709b608333ef5b5eb67c1b1",
+    "aggregate.py": "7561796c4c48e42a06ffeb1bff2cd42d26d02ff251305f95125a3bcb6d4f8ad0",
+    "anchors.py": "792263c496db74c6805d1a95e65eab733e55d168298dc899c5f65cd489a59ca8",
+    "config.py": "37091ccd397bd0741d590be121153bb6a327d805bac343c8d98da979fac0dbd2",
+    "geography.py": "fc3cbf2615d1df2c68642ba2fc4639b8df6dbd25f2b8a2e130d28adda5837fb3",
+    "hp_actuals.py": "cfe818e26a5305b1633e38dd510fa3c9c42f4273ece72f9bb2112c46818876b4",
+    "hp_anchors.py": "7af8b3cc8d58e27c242ab20dbd88c4e4f168972a319efe065ed5fad0a2929aa2",
+    "hp_config.py": "840791f7d6bbec0c6dc7c1d72766888442f350ca91cc7fbdb1197bbe2a865b7a",
+    "hp_qa.py": "6edc3c24479c33b764f2919b35abbadda31c4ae6e85ad0d6380af8e92de1eea8",
+    "hp_run_integration.py": "ff5d8a69960c69311c5fed6c0304cf48b6cd7450bcd21feafc0976253b8e3614",
+    "interpolate.py": "d5609e94c8031a6ecfc734becb4ed6f22215de4a3d9d47629960dbb0e9362b94",
+    "publish_guard.py": "bfe2cce8e48256d1f5cb3d89ac038ce6d46353f162898c17ecc3dd01b5f4a028",
+    "qa.py": "aaf0c7c58317f7592a68d00a3877ac5d1e6962af43006e04331e9816573130d9",
+    "run_integration.py": "48877efec18935774221cc4ad2fd223d48e7ab2d1b3a77f7750d0362b0061154"
+  },
+  "eol_note": "current_sha256/original_sha256 are exact bytes of the operational files (mostly CRLF; publish_guard.py LF). git (core.autocrlf=true) may change line endings on checkout, so provenance checks compare the eol-normalised hashes (CRLF->LF), which still detect any content change.",
+  "operational_location": "machine-specific, not recorded here: environment variable C1_RUNNER_DIR, or \"operational_runner_dir\" in integration_runner/local_paths.json (see local_paths.example.json)",
+  "operational_rollback_copy": "<operational runner dir>/run_integration.py.pre_c1_guard_20261013.bak",
+  "original_sha256": {
+    "__init__.py": "c7148237b0d373c73c2a689bc7b1e34ebb1980746bcc9e6fce034653595d9c48",
+    "actuals.py": "8b1753581ad447e78f3973f8f276a8b916acb42da0305becdfa90dff80f5ff55",
+    "aggregate.py": "ce2ade984f4af6877a4b20237838661566c10e5f8175ba88bcabf5b63aeabd33",
+    "anchors.py": "47226dffad9aef0275574d505c3cfb0ea4ecf8c3b78abbbef2fd4f3c5e867f06",
+    "config.py": "fbcec6d51b0ce95dc1daa80f2b6e50b32f56953381f667830f32412be60cde89",
+    "geography.py": "fc1ee573753e87f6bffb460c5db812c28ac4b2d3cfe3b80b5e589ab98645b891",
+    "hp_actuals.py": "be4fe7cf07f9cb9bf81c6a38b331a5d0d442bfc7aa9d655b548f1ac9577ee357",
+    "hp_anchors.py": "5c308ee27cec9fd433cbd5a818eb91866b8b4775e70e129af13d98b23262473a",
+    "hp_config.py": "a2a001c4cbadf239011a9e3665c6a7bf564485b0d4aa72fc51ddfc8e746038f2",
+    "hp_qa.py": "10dbd0f72932718a97fb6e3178bef6fb22b067e527919f9aa4771028d4afaf6e",
+    "hp_run_integration.py": "467341a4d65290bf051fd5fc461d80bce7dfaea722a528328c2230b88fefcb13",
+    "interpolate.py": "f4ed7c4d1c5c63151fa02e411b48bd609f8798d9247ca79c1c8602b48966d0fa",
+    "qa.py": "b97261f033fd7f4f908e51935167ad3b3c3fda593b8d99f82b81e6b5a0ff8ff8",
+    "run_integration.py": "d39b8765c9dc554477cec230691a5ee42867479af6b4d9c998d1dcbdd86a2368"
+  },
+  "original_sha256_eol_normalised": {
+    "run_integration.py": "524bee6510f4bba44186f2d7edcf4b201b44966282687d66a47b635f62da97f3"
+  },
+  "repository_copy_sanitisation": {
+    "files": {
+      "config.py": {
+        "change": "DASHBOARD read from LCT_DASHBOARD_ROOT or local_paths.json \"dashboard_root\" (new helper local_path)",
+        "hunks": [
+          {
+            "operational_lines": [
+              3,
+              2
+            ],
+            "operational_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "repository_lines": [
+              3,
+              4
+            ]
+          },
+          {
+            "operational_lines": [
+              7,
+              7
+            ],
+            "operational_text_sha256": "c59b3328b59d1c9c0cc46f7951d8610f6cf4f0199d214ec572f6bd1cdbbc983e",
+            "repository_lines": [
+              9,
+              26
+            ]
+          }
+        ],
+        "operational_sha256_eol_normalised": "37091ccd397bd0741d590be121153bb6a327d805bac343c8d98da979fac0dbd2",
+        "repository_sha256_eol_normalised": "5667d264599ea39bf92fc16caefb0c3731a1fcc015e7e392e768eb15d24389e5"
+      },
+      "hp_config.py": {
+        "change": "HP_PROJECT read from LCT_HP_PROJECT or local_paths.json \"hp_project\"",
+        "hunks": [
+          {
+            "operational_lines": [
+              21,
+              20
+            ],
+            "operational_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "repository_lines": [
+              21,
+              21
+            ]
+          },
+          {
+            "operational_lines": [
+              23,
+              23
+            ],
+            "operational_text_sha256": "4e3155cfa5b7e4a095218c72d42072b5085c1247ec8d618d3572e2f1f5c87f23",
+            "repository_lines": [
+              24,
+              24
+            ]
+          }
+        ],
+        "operational_sha256_eol_normalised": "840791f7d6bbec0c6dc7c1d72766888442f350ca91cc7fbdb1197bbe2a865b7a",
+        "repository_sha256_eol_normalised": "124e218d38051db166957b69af42139184a66c7ee6b3fb25b8de32eb50b9e198"
+      },
+      "hp_qa.py": {
+        "change": "the EV HT forecast provenance path uses config.HT_FINAL (same folder: <runner parent>/ht_ukpn_final_outputs)",
+        "hunks": [
+          {
+            "operational_lines": [
+              10,
+              9
+            ],
+            "operational_text_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "repository_lines": [
+              10,
+              10
+            ]
+          },
+          {
+            "operational_lines": [
+              489,
+              489
+            ],
+            "operational_text_sha256": "64a5f5fa40fa8dc33fa5db9295638541f6d43c4dbf9c4362b060bb7bdf2beeeb",
+            "repository_lines": [
+              490,
+              490
+            ]
+          }
+        ],
+        "operational_sha256_eol_normalised": "6edc3c24479c33b764f2919b35abbadda31c4ae6e85ad0d6380af8e92de1eea8",
+        "repository_sha256_eol_normalised": "1bbfa4cc17f8499584700bc77deece111aa8fcd739f3076884202d5edf537941"
+      }
+    },
+    "note": "current_sha256 / current_sha256_eol_normalised remain the hashes of the operational files. The repository copy equals them except the files below, where machine-specific path constants are resolved from local configuration instead. Each hunk records the replaced operational lines by hash only; integration_runner/provenance.py proves that operational and repository copies differ only in these hunks."
+  },
+  "repository_rollback_copy": "integration_runner/original/run_integration.py",
+  "source_repository_status": "untracked in a separate local git repository; no history before this copy"
+}
