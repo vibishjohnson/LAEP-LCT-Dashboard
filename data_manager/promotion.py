@@ -27,6 +27,7 @@ import os
 import shutil
 import json
 import hashlib
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -72,13 +73,26 @@ def _hashes(root: str, rel_paths) -> Dict[str, str]:
     return {p: _sha256(os.path.join(root, p)) for p in rel_paths if os.path.exists(os.path.join(root, p))}
 
 
+def _os_replace(src: str, dst: str, attempts: int = 12, delay: float = 0.05):
+    """os.replace with a short retry: on Windows a scanner/indexer briefly holding a just-written file makes the
+    rename fail with 'Access is denied'. A persistent failure is re-raised after the retries."""
+    for i in range(attempts):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if i == attempts - 1:
+                raise
+            time.sleep(delay * (i + 1))
+
+
 def _write_json_atomic(path: str, obj: Dict):
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(obj, f, indent=2)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, path)
+    _os_replace(tmp, path)
 
 
 def _replace_file(src: str, dst: str, expected: str):
@@ -89,7 +103,7 @@ def _replace_file(src: str, dst: str, expected: str):
     if _sha256(tmp) != expected:
         os.remove(tmp)
         raise Exception(f"copy verification failed for {dst}")
-    os.replace(tmp, dst)
+    _os_replace(tmp, dst)
 
 
 def _after_replace(rel_path: str):

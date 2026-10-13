@@ -370,6 +370,23 @@ class TestC1SafePromotion(unittest.TestCase):
         self.assertEqual(self.outputs(), before)
         self.assertEqual(incomplete_operations(backup_root), [])
 
+    def test_transient_access_denied_on_replace_is_retried(self):
+        fx.make_candidate(self.root, self.RUN, forecast=fx.forecast_frame(smmt=True))
+        real_replace, calls = os.replace, []
+
+        def flaky(src, dst):
+            calls.append(dst)
+            if len(calls) <= 2:
+                raise PermissionError(13, "Access is denied")
+            return real_replace(src, dst)
+        promotion_module.os.replace = flaky
+        try:
+            ok, msg = self.promoter.promote(self.RUN)
+        finally:
+            promotion_module.os.replace = real_replace
+        self.assertTrue(ok, msg)
+        self.assertGreater(len(calls), 2)
+
     def test_concurrent_operation_is_refused(self):
         fx.make_candidate(self.root, self.RUN, forecast=fx.forecast_frame(smmt=True))
         backup_root = os.path.join(self.root, "project", "production_backups")
