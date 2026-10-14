@@ -1,0 +1,27 @@
+{
+  "methodology_id": "C1_DYNAMIC_PRIVATE_EV",
+  "status": "EXPERIMENTAL CANDIDATE - not production, not used by dashboard",
+  "provenance": {
+    "source_veh0135_sha256": "ba54465c0ebfb7bb",
+    "source_lsoa_dno_sha256": "b6a6cf72e4ad5d82",
+    "code_git_head": "97e855f",
+    "run_utc": "2026-10-12T13:15:08Z"
+  },
+  "lpn_minimum_share": {
+    "C1": 0.2,
+    "A_reference": 0.25
+  },
+  "codes": {
+    "MODELLED_NOT_OBSERVED_LOCATION": "keeper-address registrations after modelled redistribution; not observed vehicle locations",
+    "NONPRIVATE_JOINT_BLOCK": "company and unclassified (suppressed-keeper) stock share the retention allowance proportionally and are pooled together; never treated as private"
+  },
+  "inputs": {
+    "veh0135": "ev\\df_VEH0135.csv",
+    "lsoa_dno": "lookups\\LSOA to DNO.csv",
+    "geography": "project\\output_processed\\integration\\geography_lookup.csv",
+    "la_laep": "lookups\\LA-LAEP lookup.csv",
+    "production_lsoa": "project\\output_processed\\ev_quarterly_lsoa.csv"
+  },
+  "checks_passed": 357,
+  "checks_total": 357
+}

@@ -1,0 +1,10 @@
+{
+  "note": "Proposal only. Apply at an approved promotion; the live metadata.json is not modified by this writer.",
+  "proposed_changes_for_integration_metadata_json": {
+    "ev_actuals_first_period": "2025-03",
+    "ev_actuals_lpn_min_share": 0.2,
+    "ev_actuals_method_a_archive": "experiments/ev_redistribution_c1/method_a_archive/manifest.json",
+    "ev_actuals_methodology_id": "C1_DYNAMIC_PRIVATE_EV",
+    "latest_actual_period": "2026-03"
+  }
+}

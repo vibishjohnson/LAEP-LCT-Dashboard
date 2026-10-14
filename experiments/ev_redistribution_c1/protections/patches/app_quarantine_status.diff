@@ -1,0 +1,54 @@
+--- a/app_data_manager.py	2026-10-01 12:33:45.501903200 +0100
++++ b/app_data_manager.py
+@@ -26,7 +26,7 @@
+ from data_manager.smmt import SMmtManager
+ from data_manager.nowcast import NowcastEngine
+ from data_manager.dft_update import DfTUpdateManager
+-from data_manager.promotion import AtomicPromotion, ManualRollback, CandidateValidator
++from data_manager.promotion import AtomicPromotion, ManualRollback, CandidateValidator, candidate_status
+ from data_manager.smmt_candidate_builder import SMmtCandidateBuilder
+ from data_manager.candidate_registry import CandidateRegistry, initialize_smmt_candidate
+ 
+@@ -56,16 +56,17 @@
+     current_candidate = None
+     candidate_dir = os.path.join(PROJECT_ROOT, "project", "dft_staging", "production_candidate_smmt")
+     if os.path.exists(candidate_dir):
++        eligibility = candidate_status(PROJECT_ROOT, "smmt_nowcast_20261001_121056")
+         current_candidate = {
+             "run_id": "smmt_nowcast_20261001_121056",
+             "type": "SMMT Nowcast",
+-            "status": "READY FOR PROMOTION",
++            "status": eligibility["status"],
+             "dft_vintage": "31 March 2026",
+             "nowcast_start": "April 2026",
+             "nowcast_end": "August 2026",
+             "march_stock": 908964,
+             "august_stock": 1023403,
+-            "qa_status": "PASS",
++            "qa_status": "PASS" if eligibility["can_promote"] else "INELIGIBLE",
+             "review_url": "/promotion-review/smmt_nowcast_20261001_121056"
+         }
+ 
+@@ -450,7 +451,7 @@
+         candidates_list.append({
+             "run_id": "smmt_nowcast_20261001_121056",
+             "type": "SMMT Monthly Nowcast",
+-            "status": "READY FOR PROMOTION",
++            "status": candidate_status(PROJECT_ROOT, "smmt_nowcast_20261001_121056")["status"],
+             "created": "2026-10-01 12:10:56",
+             "dft_vintage": "31 March 2026",
+             "description": "April–August 2026 SMMT allocations",
+@@ -483,9 +484,10 @@
+     metadata = candidate_info.get("metadata", {})
+     candidate_dir = candidate_registry.get_candidate_directory(run_id)
+ 
+-    # Check if candidate directory exists
+-    can_promote = os.path.exists(candidate_dir) if candidate_dir else False
+-    errors = [] if can_promote else [f"Candidate directory not found: {candidate_dir}"]
++    # Eligibility comes from the same checks the promotion API applies (quarantine, QA, EV actuals, ...)
++    eligibility = candidate_status(PROJECT_ROOT, run_id)
++    can_promote = eligibility["can_promote"]
++    errors = eligibility["errors"]
+ 
+     return render_template(
+         "promotion_review.html",

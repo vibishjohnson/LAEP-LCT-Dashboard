@@ -1,0 +1,68 @@
+{
+  "candidate_checks": [
+    357,
+    357
+  ],
+  "candidate_provenance": {
+    "code_git_head": "97e855f",
+    "run_utc": "2026-10-12T13:15:08Z",
+    "source_lsoa_dno_sha256": "b6a6cf72e4ad5d82",
+    "source_veh0135_sha256": "ba54465c0ebfb7bb"
+  },
+  "inputs_sha256": {
+    "experiments/ev_redistribution_c1/outputs/c1_lsoa_quarterly.csv": "8c539a9a4076d02c2402d7f0d70caca24ef93858930286ccbc62361c625f669a",
+    "experiments/ev_redistribution_c1/outputs/run_metadata.json": "05540614bdca4d1af3a519e0d952d777e2734e26e2f130fab30bf365c2527537",
+    "lookups/LSOA to DNO.csv": "b6a6cf72e4ad5d82bd4e12a28c8ba96880a2c255ad3d6c5bda04a3785d70e591",
+    "project/output_processed/integration/geography_lookup.csv": "4c68cb4f8e6bbf32844b119a6bad56275320b350593385eb38946f79ebbe71f2"
+  },
+  "intended_production_targets": {
+    "ev_actuals_dno.csv": "project/output_processed/integration/ev_actuals_dno.csv",
+    "ev_actuals_la.csv": "project/output_processed/integration/ev_actuals_la.csv",
+    "ev_actuals_laep.csv": "project/output_processed/integration/ev_actuals_laep.csv"
+  },
+  "lpn_min_share": 0.2,
+  "methodology_id": "C1_DYNAMIC_PRIVATE_EV",
+  "outputs": {
+    "ev_actuals_dno.csv": {
+      "periods": [
+        "2025-03",
+        "2025-06",
+        "2025-09",
+        "2025-12",
+        "2026-03"
+      ],
+      "rows": 30,
+      "sha256": "b558a6b02ac03d0698bce480d3d9b92ef77d2f375c8e68ed3d4f14c389f55f95"
+    },
+    "ev_actuals_la.csv": {
+      "periods": [
+        "2025-03",
+        "2025-06",
+        "2025-09",
+        "2025-12",
+        "2026-03"
+      ],
+      "rows": 1210,
+      "sha256": "b8c737eaedd3970b603175936b2b37c7f3d3ed66788194553e4e42304085e8e6"
+    },
+    "ev_actuals_laep.csv": {
+      "periods": [
+        "2025-03",
+        "2025-06",
+        "2025-09",
+        "2025-12",
+        "2026-03"
+      ],
+      "rows": 140,
+      "sha256": "ec539024ee749d6035446caf65db551bfd07b5e835b0f14d3d37d4f04ab7c0cb"
+    }
+  },
+  "periods": [
+    "2025-03",
+    "2025-06",
+    "2025-09",
+    "2025-12",
+    "2026-03"
+  ],
+  "status": "SHADOW - not production"
+}

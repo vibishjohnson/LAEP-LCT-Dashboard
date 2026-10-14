@@ -1,0 +1,24 @@
+{
+  "copy_sha256": "4878bba63abf131f46217cc4240f7a28ad3f85823cf62cd034e3bcf614c9eb7c",
+  "history_before_c1_periods": [
+    "2011-12",
+    "2024-12",
+    53
+  ],
+  "history_before_c1_rows": 318,
+  "method_a_lsoa_record": {
+    "file": "project/output_processed/ev_quarterly_lsoa.csv",
+    "note": "not copied (large); production file left untouched",
+    "sha256": "127f2cdcb86b99a622848e0458380c3a21249e3c180db5e589b43835533c2644"
+  },
+  "methodology_id": "A_PRODUCTION_LEGACY",
+  "note": "Method A legacy history. Do not concatenate with Method C1 actuals into one stock series.",
+  "source_file": "project/output_processed/integration/ev_actuals_dno.csv",
+  "source_periods": [
+    "2011-12",
+    "2026-03",
+    58
+  ],
+  "source_rows": 348,
+  "source_sha256": "4878bba63abf131f46217cc4240f7a28ad3f85823cf62cd034e3bcf614c9eb7c"
+}

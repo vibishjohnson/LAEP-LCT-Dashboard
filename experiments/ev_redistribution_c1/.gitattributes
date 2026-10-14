@@ -1,0 +1,4 @@
+# Release artefacts pinned by sha256 in release/release_config.py must keep their exact bytes on every checkout.
+# CSV files are already stored byte-exact by Git LFS (root .gitattributes); this keeps the pinned JSON files
+# (shadow_integration/*.json, method_a_archive/manifest.json, outputs/run_metadata.json) free of line-ending conversion.
+*.json -text
