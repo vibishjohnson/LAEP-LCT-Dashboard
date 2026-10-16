@@ -1,4 +1,9 @@
-"""Tests for the C1 integration writer. Production files are only read; all writes go to pytest temp dirs."""
+"""Tests for the C1 integration writer. Production files are only read; all writes go to pytest temp dirs.
+
+Since release c1-20261014-ukpn-ev the live integration files are C1. Tests that need the original Method A
+production files (format proof, schema, archive) use the immutable historical bytes from git history / the release
+backup (verified against the pinned Method A hashes), not the live files.
+"""
 import hashlib
 import json
 import os
@@ -13,6 +18,9 @@ import pytest
 EXP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EXP))
 import integration_writer as w  # noqa: E402
+sys.path.insert(0, str(EXP / 'release'))
+import disposable_env as denv  # noqa: E402
+import release_config as cfg  # noqa: E402
 
 REPO = w.REPO
 PROD = w.PROD_INTEGRATION
@@ -23,8 +31,22 @@ PROTECTED = [REPO / 'dashboard.html', PROD / 'ev_actuals_dno.csv', PROD / 'ev_ac
 digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
+@pytest.fixture(scope='module', autouse=True)
+def historical(tmp_path_factory):
+    """Original Method A production files, materialised from immutable sources into a temp dir.
+    The writer's Method A archive source points at them for this module (production itself is now C1)."""
+    d = tmp_path_factory.mktemp('method_a_production')
+    for n in cfg.TARGET_NAMES:
+        (d / n).write_bytes(denv.method_a_target_bytes(n))
+        assert digest(d / n) == cfg.METHOD_A_TARGET_SHA256[n]
+    original = w.PROD_METHOD_A_DNO
+    w.PROD_METHOD_A_DNO = d / 'ev_actuals_dno.csv'
+    yield d
+    w.PROD_METHOD_A_DNO = original
+
+
 @pytest.fixture(scope='module')
-def written(tmp_path_factory):
+def written(tmp_path_factory, historical):
     before = {p: digest(p) for p in PROTECTED}
     shadow, archive = tmp_path_factory.mktemp('shadow'), tmp_path_factory.mktemp('archive')
     dno, la, laep, manifest, arch = w.write_all(shadow, archive)
@@ -116,20 +138,20 @@ def test_malformed_input_rejected(mutate):
 
 
 # ---------------------------------------------------------------- format proof
-def test_writer_reproduces_production_files_byte_for_byte_from_method_a():
+def test_writer_reproduces_production_files_byte_for_byte_from_method_a(historical):
     canon = w.load_geography()
     a = pd.read_csv(w.PROD_METHOD_A_LSOA).rename(columns={'install_count': 'stock'})[['period', 'LSOA21CD', 'EV_Type', 'stock']]
     dno, la, laep = w.build_integration_frames(a, canon)
-    assert w.to_csv_bytes(dno) == (PROD / 'ev_actuals_dno.csv').read_bytes()
+    assert w.to_csv_bytes(dno) == (historical / 'ev_actuals_dno.csv').read_bytes()       # original Method A production
     five = lambda f: f[f.period.isin(w.EXPECTED_PERIODS)].reset_index(drop=True)
-    assert w.to_csv_bytes(five(la)) == (PROD / 'ev_actuals_la.csv').read_bytes()
-    assert w.to_csv_bytes(five(laep)) == (PROD / 'ev_actuals_laep.csv').read_bytes()
+    assert w.to_csv_bytes(five(la)) == (historical / 'ev_actuals_la.csv').read_bytes()
+    assert w.to_csv_bytes(five(laep)) == (historical / 'ev_actuals_laep.csv').read_bytes()
 
 
 # ---------------------------------------------------------------- output content
 @pytest.mark.parametrize('name', ['ev_actuals_dno.csv', 'ev_actuals_la.csv', 'ev_actuals_laep.csv'])
-def test_schema_matches_production(written, name):
-    new, prod = written['files'][name], pd.read_csv(PROD / name)
+def test_schema_matches_production(written, historical, name):
+    new, prod = written['files'][name], pd.read_csv(historical / name)
     assert list(new.columns) == list(prod.columns)
     assert (new.dtypes.astype(str) == prod.dtypes.astype(str)).all()
     raw = (written['shadow'] / name).read_bytes()
@@ -137,8 +159,8 @@ def test_schema_matches_production(written, name):
 
 
 @pytest.mark.parametrize('name', ['ev_actuals_la.csv', 'ev_actuals_laep.csv'])
-def test_observation_constants_match_production(written, name):
-    new, prod = written['files'][name], pd.read_csv(PROD / name)
+def test_observation_constants_match_production(written, historical, name):
+    new, prod = written['files'][name], pd.read_csv(historical / name)
     for col in w.OBSERVATION_CONSTANTS:
         assert new[col].astype(str).unique().tolist() == prod[col].astype(str).unique().tolist(), col
 
@@ -237,15 +259,16 @@ def test_rerun_is_byte_identical_and_matches_committed_shadow(written, tmp_path)
         assert (tmp_path / 'a2' / name).read_bytes() == (written['archive'] / name).read_bytes(), name
 
 
-def test_method_a_archive_preserves_history(written):
+def test_method_a_archive_preserves_history(written, historical):
     arch = written['archive']
-    assert (arch / 'ev_actuals_dno_method_a_original.csv').read_bytes() == (PROD / 'ev_actuals_dno.csv').read_bytes()
+    assert (arch / 'ev_actuals_dno_method_a_original.csv').read_bytes() == (historical / 'ev_actuals_dno.csv').read_bytes()
+    assert (arch / 'ev_actuals_dno_method_a_original.csv').read_bytes() == (w.ARCHIVE_DIR / 'ev_actuals_dno_method_a_original.csv').read_bytes()
     hist = pd.read_csv(arch / 'method_a_dno_history_before_2025-03.csv')
-    prod = pd.read_csv(PROD / 'ev_actuals_dno.csv'); prod_hist = prod[prod.period < '2025-03'].reset_index(drop=True)
+    prod = pd.read_csv(historical / 'ev_actuals_dno.csv'); prod_hist = prod[prod.period < '2025-03'].reset_index(drop=True)
     assert (hist.methodology_id == 'A_PRODUCTION_LEGACY').all()
     assert hist[prod.columns].equals(prod_hist)
     m = written['archive_manifest']
-    assert m['source_sha256'] == digest(PROD / 'ev_actuals_dno.csv') == m['copy_sha256']
+    assert m['source_sha256'] == digest(historical / 'ev_actuals_dno.csv') == m['copy_sha256'] == cfg.METHOD_A_TARGET_SHA256['ev_actuals_dno.csv']
     assert (m['source_rows'], m['history_before_c1_rows']) == (348, 318) and m['history_before_c1_periods'][:2] == ['2011-12', '2024-12']
 
 
@@ -254,3 +277,25 @@ def test_metadata_patch_is_proposal_only_and_consistent(written):
     patch = json.loads((written['shadow'] / 'metadata_patch_proposal.json').read_text())['proposed_changes_for_integration_metadata_json']
     assert patch['latest_actual_period'] == max(written['files']['ev_actuals_dno.csv'].period) == live['latest_actual_period']
     assert digest(PROD / 'metadata.json') == written['before'][PROD / 'metadata.json']
+
+
+# ---------------------------------------------------------------- post-release state
+def test_live_production_equals_released_c1_shadow():
+    for n in cfg.TARGET_NAMES:
+        assert digest(PROD / n) == digest(w.SHADOW_DIR / n) == cfg.SHADOW_SHA256[n]
+
+
+def test_quarterly_rerun_against_live_c1_keeps_archive_frozen(tmp_path, monkeypatch):
+    """Readiness for a future quarterly run: production is C1, the archive already exists. The writer must regenerate
+    the shadow files and leave the archive untouched (no rebuild from C1 production)."""
+    import shutil
+    archive = tmp_path / 'archive'
+    shutil.copytree(w.ARCHIVE_DIR, archive)
+    before = {p.name: (digest(p), os.stat(p).st_mtime_ns) for p in archive.iterdir()}
+    monkeypatch.setattr(w, 'PROD_METHOD_A_DNO', PROD / 'ev_actuals_dno.csv')     # the live (C1) file
+    w.write_all(tmp_path / 'shadow', archive)
+    assert {p.name: (digest(p), os.stat(p).st_mtime_ns) for p in archive.iterdir()} == before
+    for n in cfg.TARGET_NAMES:
+        assert digest(tmp_path / 'shadow' / n) == cfg.SHADOW_SHA256[n]
+    with pytest.raises(ValueError, match='no longer contains Method A history'):
+        w.write_method_a_archive(tmp_path / 'fresh_archive')                     # never rebuilt from C1 production

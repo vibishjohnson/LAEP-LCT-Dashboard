@@ -1,4 +1,8 @@
-"""Regression tests: the working-tree dashboard.html run against production vs the shadow C1 integration files.
+"""Regression tests: dashboard.html run against the original Method A production, the C1 shadow files and live.
+
+Run keys: "prod" = the original pre-release Method A production files (immutable historical bytes, redirected),
+"c1" = the C1 shadow files (redirected), "live" = the current production files (no redirect; C1 since release
+c1-20261014-ukpn-ev). Migration tests compare c1 with prod; current-state tests require live == c1.
 
 The page script runs headless in Node (dashboard_regression/dashboard_harness.js); the harness only reads files.
 Expected values are derived here independently from the shadow CSVs and the production DFES forecast rows.
@@ -7,6 +11,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -27,6 +32,8 @@ LA_CODES = {'Peterborough': 'E06000031', 'Westminster': 'E09000033'}
 NETWORK_AREAS = ['UKPN Total', 'EPN', 'LPN', 'SPN']
 LOCAL = [f'LA|{n}' for n in LA_CODES] + [f'LAEP|{n} LAEP' for n in ('Peterborough', 'Norwich', 'Westminster', 'Outer East', 'West London')]
 SUBTYPES = ('Total', 'BEV', 'PHEV')
+sys.path.insert(0, str(EXP / 'release'))
+import disposable_env as denv  # noqa: E402
 digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 pytestmark = pytest.mark.skipif(shutil.which('node') is None, reason='node not installed')
@@ -59,10 +66,17 @@ def runs(tmp_path_factory):
                  PROD / 'monthly_forecast_la.csv', PROD / 'monthly_forecast_laep.csv', *(SHADOW / f for f in EV_FILES)]
     before = {p: digest(p) for p in protected}
     redirect = {f: SHADOW / f for f in EV_FILES}
+    method_a = tmp / 'method_a_production'
+    method_a.mkdir()
+    (tmp / 'a').mkdir()
+    (tmp / 'c').mkdir()
+    for f in EV_FILES:                                   # original Method A production (verified against its pinned hash)
+        (method_a / f).write_bytes(denv.method_a_target_bytes(f))
     out = {}
     for mode in ('ev', 'ev_local', 'nonev', 'path'):
-        out[('prod', mode)] = run_harness(mode)
-        out[('c1', mode)] = run_harness(mode, redirect, tmp)
+        out[('prod', mode)] = run_harness(mode, {f: method_a / f for f in EV_FILES}, tmp / 'a')
+        out[('c1', mode)] = run_harness(mode, redirect, tmp / 'c')
+        out[('live', mode)] = run_harness(mode)
     out['unchanged'] = before == {p: digest(p) for p in protected}
     out['tmp'] = tmp
     return out
@@ -295,3 +309,21 @@ def test_missing_local_file_silently_blanks_ev_views_only(runs, name, level, tmp
     assert all(r['plots'] == clean[l]['plots'] and r['kpis'] == clean[l]['kpis'] for l, r in by_label(nonev).items())
     for label, r in by_label(ev).items():
         assert (r['plots']['stockChart']['traces'] == []) == label.startswith(level + '|'), label
+
+
+# ---------------------------------------------------------------- current production (post-release)
+@pytest.mark.parametrize('mode', ['ev', 'ev_local', 'nonev', 'path'])
+def test_live_dashboard_equals_released_c1(runs, mode):
+    live, c1 = by_label(runs[('live', mode)]), by_label(runs[('c1', mode)])
+    assert list(live) == list(c1) and live
+    for label in live:
+        for field in ('plots', 'kpis', 'titles', 'caveats', 'cumulativeVisible', 'state'):
+            assert live[label][field] == c1[label][field], (label, field)
+    fetched = {Path(f['url']).name: f['target'] for f in runs[('live', mode)]['fetched']}
+    assert all('shadow' not in t and 'method_a' not in t for t in fetched.values())     # live files, no redirect
+
+
+def test_live_earliest_observation_is_march_2025(runs):
+    live = by_label(runs[('live', 'ev')])['Network|UKPN Total|Total']
+    assert kpi(live, 'Earliest Observation') == (719684, 'vehicles (2025-03)')
+    assert kpi(live, 'Latest Actual Stock') == (896098, 'vehicles (2026-03)')

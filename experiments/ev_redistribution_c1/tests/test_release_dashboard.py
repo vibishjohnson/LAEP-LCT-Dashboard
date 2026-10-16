@@ -3,7 +3,9 @@
 The harness runs the environment's copy of dashboard.html with the environment as its working directory, so every
 fetch (EV actuals, forecasts, HP, comparison files) is served from the promoted disposable files, not from the repository.
 Expected results: identical to the Phase 4 shadow-redirect run (independently validated by test_dashboard_regression.py),
-with independent spot checks here; after rollback, identical to the production run.
+with independent spot checks here; after rollback, identical to the original Method A production run.
+"prod" is the original pre-release Method A production (immutable historical bytes, redirected); "live" is the
+current production (C1 since release c1-20261014-ukpn-ev), which the disposable promotion must reproduce exactly.
 """
 import json
 import os
@@ -71,8 +73,14 @@ def runs(tmp_path_factory):
     denv.build(env, template)
     try:
         out = {'env': env}
-        out.update({('prod', m): harness(m, REPO) for m in MODES})
-        out.update({('shadow', m): harness(m, REPO, {n: SHADOW / n for n in cfg.TARGET_NAMES}, tmp) for m in MODES})
+        method_a = tmp / 'method_a_production'
+        for d in (method_a, tmp / 'a', tmp / 's'):
+            d.mkdir()
+        for n in cfg.TARGET_NAMES:
+            (method_a / n).write_bytes(denv.method_a_target_bytes(n))
+        out.update({('prod', m): harness(m, REPO, {n: method_a / n for n in cfg.TARGET_NAMES}, tmp / 'a') for m in MODES})
+        out.update({('shadow', m): harness(m, REPO, {n: SHADOW / n for n in cfg.TARGET_NAMES}, tmp / 's') for m in MODES})
+        out.update({('live', m): harness(m, REPO) for m in MODES})
         pf = rel.preflight(env)
         out['promotion'] = rel.promote(env, 'c1-20261012-dash', rel.confirm_token('PROMOTE', 'c1-20261012-dash', pf['digest']))
         out['promoted_targets'] = {n: rel.sha256_file(env / cfg.INTEGRATION_REL / n) for n in cfg.TARGET_NAMES}
@@ -159,3 +167,12 @@ def test_promoted_ev_series_independent_checks(runs):
     assert kpi(ev['Network|UKPN Total|Total'], 'Latest Actual Stock')[0] == 896098
     assert kpi(prod['Network|UKPN Total|Total'], 'Earliest Observation')[1] == 'vehicles (2011-12)'
     assert min(tr(ev['LA|Westminster|BEV'], 'monthlyChart')[OQ]['y']) < 0                  # negative local change visible
+
+
+@pytest.mark.parametrize('mode', MODES)
+def test_disposable_promotion_reproduces_the_live_production_dashboard(runs, mode):
+    p, live = labels(runs[('promoted', mode)]), labels(runs[('live', mode)])
+    assert list(p) == list(live) and p
+    for label in p:
+        for field in FIELDS:
+            assert p[label][field] == live[label][field], (label, field)

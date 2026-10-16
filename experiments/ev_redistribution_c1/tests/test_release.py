@@ -38,6 +38,16 @@ PRODUCTION_FILES = [REPO / 'dashboard.html', *sorted(REPO.joinpath(*INTEG.split(
 PRODUCTION_FILES = [p for p in PRODUCTION_FILES if p.exists()]     # promotion_history.jsonl is local admin state (untracked)
 digest = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
 _PRODUCTION_BEFORE = {}
+_STATE_BEFORE = {}
+RELEASE_ID = 'c1-20261014-ukpn-ev'                 # the production release (post-release state)
+
+
+def state_snapshot():
+    """Hashes of the live release-state files (release manifest, backups, audit). Tests must never change them."""
+    if not REPO_STATE.exists():
+        return {}
+    return {Path(os.path.relpath(Path(d) / f, REPO_STATE)).as_posix(): digest(Path(d) / f)
+            for d, _, fs in os.walk(REPO_STATE) for f in fs}
 
 
 def _rmtree(path):
@@ -50,7 +60,7 @@ def _rmtree(path):
 @pytest.fixture(scope='module', autouse=True)
 def production_guard():
     _PRODUCTION_BEFORE.update({str(p): digest(p) for p in PRODUCTION_FILES})
-    assert not REPO_STATE.exists()
+    _STATE_BEFORE.update(state_snapshot())
     yield
 
 
@@ -59,8 +69,10 @@ def template():
     dest = BASE / f'c1rT-{uuid.uuid4().hex[:6]}'
     denv.build(dest)
     yield dest
+    targets = {f'{INTEG}/{n}': n for n in TARGETS}
     for relpath, h in {r: denv.rel.sha256_file(dest.joinpath(*r.split('/'))) for r in denv.env_files()}.items():
-        assert h == digest(REPO.joinpath(*relpath.split('/'))), f'template copy drifted: {relpath}'
+        expected = cfg.METHOD_A_TARGET_SHA256[targets[relpath]] if relpath in targets else digest(REPO.joinpath(*relpath.split('/')))
+        assert h == expected, f'template copy drifted: {relpath}'   # targets: pre-release Method A baseline
     _rmtree(dest)
 
 
@@ -195,28 +207,29 @@ def test_live_repository_refused_before_any_write(op):
     tokens = {'promote': 'PROMOTE c1-20261012-live 0000000000000000', 'rollback': 'ROLLBACK c1-20261012-live x', 'recover': 'RECOVER c1-20261012-live'}
     with pytest.raises(rel.LiveReleaseBlocked):
         getattr(rel, op)(str(REPO), rid, tokens[op])
-    assert not cfg.LIVE_RELEASE_ENABLED and not REPO_STATE.exists()
+    assert not cfg.LIVE_RELEASE_ENABLED and state_snapshot() == _STATE_BEFORE
 
 
 def test_live_repository_cli_refused_and_status_is_read_only():
     r = run_cli(['promote', '--root', str(REPO), '--release-id', 'c1-20261012-live', '--confirm', 'PROMOTE c1-20261012-live x'])
     assert r.returncode == rel.LiveReleaseBlocked.exit_code and 'LIVE_RELEASE_BLOCKED' in r.stdout
     st = rel.verify_c1(str(REPO))                       # the Method A reversion detector, run read-only on production
-    assert not st['ok'] and st['targets']['overall'] == 'METHOD_A'
-    assert st['targets']['signals']['ev_actuals_dno.csv']['first_period'] == '2011-12'
-    assert not REPO_STATE.exists()
+    assert st['ok'] and st['targets']['overall'] == 'C1', st['problems']          # production is the released C1
+    assert st['targets']['signals']['ev_actuals_dno.csv']['first_period'] == '2025-03'
+    assert state_snapshot() == _STATE_BEFORE
 
 
 def test_live_repository_preflight_passes_read_only():
     before = {str(p): digest(p) for p in PRODUCTION_FILES}
-    pf = rel.preflight(str(REPO))
+    pf = rel.preflight(str(REPO), require='C1')        # post-release: live targets must be the released C1 bytes
     assert pf['live'] and pf['ok'], [c for c in pf['checks'] if not c['pass']]
-    assert pf['target_state']['overall'] == 'METHOD_A'
+    assert pf['target_state']['overall'] == 'C1'
     key_files = {'dashboard.html', f'{INTEG}/monthly_forecast_dno.csv', f'{INTEG}/monthly_forecast_la.csv', f'{INTEG}/metadata.json',
                  f'{INTEG}/hp_actuals_dno.csv', f'{INTEG}/hp_monthly_forecast_la.csv', 'lookups/LSOA to DNO.csv', 'ev/df_VEH0135.csv'}
     assert key_files <= set(pf['protected'])                       # count varies with untracked local state
     assert not set(pf['protected']) & {f'{INTEG}/{n}' for n in TARGETS}
-    assert before == {str(p): digest(p) for p in PRODUCTION_FILES} and not REPO_STATE.exists()
+    assert before == {str(p): digest(p) for p in PRODUCTION_FILES} and state_snapshot() == _STATE_BEFORE
+    assert not rel.preflight(str(REPO))['ok']                # a second Method A -> C1 promotion is refused
 
 
 @pytest.mark.parametrize('bad', [lambda: REPO / 'experiments', lambda: REPO / 'project' / 'output_processed', lambda: REPO.parent,
@@ -435,7 +448,7 @@ def test_backup_and_manifest_are_complete(env):
     bm = json.loads((bdir / 'backup_manifest.json').read_text(encoding='utf-8'))
     assert bm['manifest_sha256'] == rel.seal(bm) and bm['release_id'] == 'c1-20261012-manifest' and bm['created_at']
     for n in TARGETS:
-        assert (bdir / n).read_bytes() == (REPO / INTEG / n).read_bytes()          # original Method A bytes
+        assert (bdir / n).read_bytes() == denv.method_a_target_bytes(n)             # original Method A bytes
         assert bm['files'][n]['sha256'] == cfg.METHOD_A_TARGET_SHA256[n]
         assert Path(bm['files'][n]['original_path']) == tpath(env, n).resolve() and Path(bm['files'][n]['backup_path']) == (bdir / n).resolve()
     assert bm['shadow_sha256'] == cfg.SHADOW_SHA256 and bm['sources_sha256']
@@ -797,7 +810,46 @@ def test_forecasts_and_non_ev_files_untouched_through_promote_and_rollback(env):
         assert rel.sha256_file(Path(env) / rel_) == h
 
 
+def test_live_production_is_the_sealed_c1_release():
+    if not (REPO_STATE / 'releases' / RELEASE_ID / 'release_manifest.json').exists():
+        pytest.skip('release state of the production release is not present on this machine')
+    m = rel.load_manifest(rel.canonical_root(str(REPO))[0], RELEASE_ID)   # verifies the manifest seal
+    assert m['status'] == 'COMPLETE' and m['methodology_id'] == 'C1_DYNAMIC_PRIVATE_EV' and m['lpn_min_share'] == 0.2
+    for n in TARGETS:
+        assert digest(REPO / INTEG / n) == m['targets'][n]['new_sha256'] == cfg.SHADOW_SHA256[n]
+        assert m['targets'][n]['old_sha256'] == cfg.METHOD_A_TARGET_SHA256[n]
+    assert not [r for r in rel.list_releases(rel.canonical_root(str(REPO))[0]) if r['status'] in rel.INCOMPLETE]
+
+
+def test_release_backup_and_git_history_preserve_method_a():
+    backup = REPO_STATE / 'backups' / RELEASE_ID
+    if not backup.exists():
+        pytest.skip('release backup is local state and not present on this machine')
+    root = rel.canonical_root(str(REPO))[0]
+    _, data = rel.verify_backup(root, RELEASE_ID, cfg.METHOD_A_TARGET_SHA256)
+    for n in TARGETS:
+        assert data[n] == denv.method_a_target_bytes(n)       # backup bytes == git history bytes == pinned Method A
+
+
+def test_c1_to_c1_update_is_refused_by_the_current_tool(template, tmp_path):
+    """Future quarterly C1 -> C1 updates are not supported by this tool version: the old-state pins are Method A.
+    A C1 baseline must fail preflight and the promotion must write nothing (fail closed until re-pinned)."""
+    dest = BASE / f'c1rL-{uuid.uuid4().hex[:6]}'
+    denv.build(dest, template, baseline='live')
+    try:
+        assert target_hashes(dest) == cfg.SHADOW_SHA256
+        before = tree(dest)
+        pf = rel.preflight(dest)
+        assert not pf['ok'] and pf['target_state']['overall'] == 'C1'
+        assert [c['check'] for c in pf['checks'] if not c['pass']] == ['targets_state']
+        with pytest.raises(rel.PreflightFailed):
+            rel.promote(dest, 'c1-20261014-c1toc1', rel.confirm_token('PROMOTE', 'c1-20261014-c1toc1', pf['digest']))
+        assert tree(dest) == before
+    finally:
+        _rmtree(dest)
+
+
 def test_zz_production_untouched_by_this_module():
     assert {str(p): digest(p) for p in PRODUCTION_FILES} == _PRODUCTION_BEFORE
-    assert not REPO_STATE.exists()
+    assert state_snapshot() == _STATE_BEFORE
     assert [p.name for p in REPO.joinpath(*INTEG.split('/')).iterdir() if p.name.startswith('.c1')] == []

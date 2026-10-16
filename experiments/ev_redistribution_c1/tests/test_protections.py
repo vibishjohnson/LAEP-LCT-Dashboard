@@ -50,6 +50,13 @@ TARGETS = cfg.TARGET_NAMES
 RUN_ID = 'smmt_nowcast_20261001_121056'
 ORIGINAL_REV = '71610eb'      # last revision with the original, unprotected promotion.py
 sha = lambda b: hashlib.sha256(b).hexdigest()
+
+
+def method_a_bytes(name):
+    """Original pre-release Method A bytes (git history / release backup, verified against the pinned hash).
+    The live integration files are C1 since release c1-20261014-ukpn-ev."""
+    import disposable_env
+    return disposable_env.method_a_target_bytes(name)
 fsha = lambda p: sha(Path(p).read_bytes())
 
 
@@ -307,7 +314,7 @@ def _historic_backup(root):
     shutil.copyfile(real / 'manifest.json', b / 'manifest.json')
     shutil.copyfile(INTEG / 'monthly_forecast_dno.csv', b / 'output_processed' / 'integration' / 'monthly_forecast_dno.csv')
     for n in TARGETS:
-        shutil.copyfile(INTEG / n, b / 'output_processed' / 'integration' / n)    # Method A EV actuals
+        (b / 'output_processed' / 'integration' / n).write_bytes(method_a_bytes(n))    # Method A EV actuals
     return real.name
 
 
@@ -409,7 +416,7 @@ def repo(tmp_path):
     d = r / 'project' / 'output_processed' / 'integration'
     d.mkdir(parents=True)
     for n in TARGETS:
-        shutil.copyfile(INTEG / n, d / n)                     # Method A baseline
+        (d / n).write_bytes(method_a_bytes(n))                # Method A baseline (pre-release production)
     _git(r, 'add', '-A')
     _git(r, 'commit', '-q', '-m', 'baseline', '--no-verify')
     return r
@@ -473,7 +480,7 @@ def test_guard_after_rollback_allows_original_and_blocks_c1(repo):
     stage_c1(repo)
     assert guard(repo).returncode == 1
     for n in TARGETS:
-        shutil.copyfile(INTEG / n, repo / cfg.INTEGRATION_REL / n)
+        (repo / cfg.INTEGRATION_REL / n).write_bytes(method_a_bytes(n))
     _git(repo, 'add', '--', *[f'{cfg.INTEGRATION_REL}/{n}' for n in TARGETS])
     assert guard(repo).returncode == 0
 
@@ -490,6 +497,23 @@ def test_guard_reads_lfs_pointer_oid(repo):
     assert guard(repo).returncode == 1
 
 
+def test_guard_with_the_real_sealed_release_accepts_c1_and_rejects_method_a_restoration(repo):
+    real = REPO / cfg.STATE_REL / 'releases' / 'c1-20261014-ukpn-ev' / 'release_manifest.json'
+    if not real.exists():
+        pytest.skip('production release record is local state and not present on this machine')
+    dst = repo / cfg.STATE_REL / 'releases' / 'c1-20261014-ukpn-ev' / 'release_manifest.json'
+    dst.parent.mkdir(parents=True)
+    shutil.copyfile(real, dst)                                  # exact bytes: the seal must still verify
+    stage_c1(repo)
+    assert guard(repo).returncode == 0                          # the released C1 bytes are accepted
+    _git(repo, 'commit', '-q', '-m', 'c1', '--no-verify')
+    for n in TARGETS:                                           # attempt to restore the original Method A bytes over C1
+        (repo / cfg.INTEGRATION_REL / n).write_bytes(method_a_bytes(n))
+    _git(repo, 'add', '--', *[f'{cfg.INTEGRATION_REL}/{n}' for n in TARGETS])
+    r = guard(repo)
+    assert r.returncode == 1 and 'COMPLETE bytes of release c1-20261014-ukpn-ev' in r.stderr
+
+
 def test_guard_blocks_deletion_and_bulk_backup_staging(repo):
     write_manifest(repo, 'c1-20261020-live', 'COMPLETE')
     _git(repo, 'rm', '-q', '--cached', '--', f'{cfg.INTEGRATION_REL}/ev_actuals_laep.csv')
@@ -498,7 +522,7 @@ def test_guard_blocks_deletion_and_bulk_backup_staging(repo):
     _git(repo, 'reset', '-q')
     b = repo / 'project' / 'production_backups' / 'promotion_x' / 'output_processed' / 'integration'
     b.mkdir(parents=True)
-    shutil.copyfile(INTEG / 'ev_actuals_dno.csv', b / 'ev_actuals_dno.csv')
+    (b / 'ev_actuals_dno.csv').write_bytes(method_a_bytes('ev_actuals_dno.csv'))
     _git(repo, 'add', '--', 'project/production_backups')
     r = guard(repo)
     assert r.returncode == 1 and 'production backups' in r.stderr

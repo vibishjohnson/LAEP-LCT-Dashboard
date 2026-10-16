@@ -181,6 +181,9 @@ def test_pin_log_cannot_repin_other_paths(env):
 
 
 def test_live_repository_repin_is_refused_and_writes_nothing():
+    state = REPO.joinpath(*cfg.STATE_REL.split('/'))           # holds the production release record since release
+    snapshot = lambda: {str(p): rel.sha256_file(p) for p in state.rglob('*') if p.is_file()} if state.exists() else {}
+    before = snapshot()
     with pytest.raises(rel.LiveReleaseBlocked):
         rp.repin(str(REPO), 'REPIN anything')
-    assert not (REPO / rel.PIN_LOG_REL).exists() and not REPO.joinpath(*cfg.STATE_REL.split('/')).exists()
+    assert not (REPO / rel.PIN_LOG_REL).exists() and snapshot() == before
