@@ -7,5 +7,6 @@
   "dfes_horizon_years": "2024-2050",
   "neso_anchor_dates": "2025-03-31 to 2051-03-31",
   "ht_outputs_untouched": true,
-  "qa_pass": true
+  "qa_pass": true,
+  "ev_vintage": null
 }
