@@ -1,0 +1,45 @@
+{
+  "schema": "c1-release-authorisation/1",
+  "kind": "PRODUCTION",
+  "_instructions": "Copy this file outside the repository and fill every null field from the real approval record (never invent names or ticket numbers). Clear outstanding_governance only when each item is actually satisfied, then run c1_quarterly_release.py preflight. Any change to the package, candidate or restatement report invalidates it.",
+  "release_id": null,
+  "_release_id_format": "c1-YYYYMMDD-ukpn-ev-2026q2 (date of the release; never reused)",
+  "package_id": "C1C-2026Q2-ce41d178-20261015T130154-B",
+  "package_seal_sha256": "3e042d9988ea88e4d2ea35087bf2566cfd4131073e725dee7c6d28b72ae03abe",
+  "candidate_id": "C1C-2026Q2-ce41d178-20261015T130154",
+  "source_set_id": "SS-VEH0135-2026Q2-ce41d17806cf",
+  "source_sha256": "ce41d17806cf3210a589fcc7bfd9297244e247e48d4a8767f5840879f41f2a6a",
+  "option": "B",
+  "option_policy": "RESTATED: restate 2025-03..2026-03 with the 2026 Q2 DfT VEH0135 vintage and append 2026-06; all C1 quarters from March 2025 retained",
+  "restatement_report_sha256": "1a0d21252c99297a2ffa63f3c04332a457a4bb96e2d12cd29d1c421ac3d25396",
+  "decision_record_sha256": "d8bad1c56d0ac4c8fe593959b05a516be6e831d6191c659e6584c854c8f77bf5",
+  "previous_release_id": "c1-20261014-ukpn-ev",
+  "target_allowlist": [
+    "project/output_processed/integration/ev_actuals_dno.csv",
+    "project/output_processed/integration/ev_actuals_la.csv",
+    "project/output_processed/integration/ev_actuals_laep.csv",
+    "project/output_processed/integration/metadata.json"
+  ],
+  "metadata_change": {
+    "field": "latest_actual_period",
+    "from": "2026-03",
+    "to": "2026-06"
+  },
+  "release_operator": null,
+  "release_approver": null,
+  "approval_reference": null,
+  "approved_at": null,
+  "acknowledged_revised_history": false,
+  "rollback_reference": {
+    "restores_release": "c1-20261014-ukpn-ev",
+    "command": "python experiments/ev_redistribution_c1/release/c1_quarterly_release.py rollback --root <repository root> --release-id <release_id> --confirm \"ROLLBACK <release_id> <first 16 of the new manifest_sha256>\""
+  },
+  "organisational_approvals": [],
+  "outstanding_governance": [
+    "named independent release approver(s) per RELEASE_CHECKLIST section A",
+    "change / release ticket reference",
+    "separate authorisation to set LIVE_RELEASE_ENABLED = True for the release window and back to False afterwards",
+    "release code reviewed and committed; archive pushed to the governed remote (Git LFS)",
+    "live metadata.json (pre-existing uncommitted change) committed or explicitly accepted as the starting state"
+  ]
+}

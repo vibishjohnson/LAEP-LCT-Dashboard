@@ -1,0 +1,39 @@
+{
+  "source_codes": {
+    "codes_old": 41597,
+    "codes_new": 41599,
+    "only_old": [
+      "E01013485",
+      "E01013845"
+    ],
+    "only_new": [
+      "E01015176",
+      "E01017139",
+      "S01015595",
+      "S01018015"
+    ],
+    "n_only_old": 2,
+    "n_only_new": 4,
+    "schema_old_cols": [
+      "LSOA21CD",
+      "LSOA21NM",
+      "Fuel",
+      "Keepership"
+    ],
+    "schema_new_cols": [
+      "LSOA21CD",
+      "LSOA21NM",
+      "Fuel",
+      "Keepership"
+    ]
+  },
+  "canonical": {
+    "canonical_ukpn_lsoas": 11023,
+    "canonical_with_rows_new_source": 10959,
+    "canonical_without_rows_new_source": 64,
+    "canonical_with_rows_old_source": 10959,
+    "canonical_newly_present": [],
+    "canonical_no_longer_present": [],
+    "note": "Canonical membership comes from lookups/LSOA to DNO.csv and is never changed to match a source; canonical LSOAs without source rows are kept as explicit zeros (approved rule)."
+  }
+}

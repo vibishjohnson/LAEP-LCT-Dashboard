@@ -1,0 +1,96 @@
+{
+  "created_at": "2026-10-15T12:50:46Z",
+  "dataset": "VEH0135",
+  "historical_vintages": [
+    {
+      "periods": [
+        "2025-03",
+        "2025-06",
+        "2025-09",
+        "2025-12",
+        "2026-03"
+      ],
+      "release_id": "c1-20261014-ukpn-ev",
+      "source_file_at_release": "ev/df_VEH0135.csv",
+      "source_veh0135_sha256_prefix": "ba54465c0ebfb7bb"
+    }
+  ],
+  "kind": "RELEASE_SOURCE",
+  "latest_period": "2026-03",
+  "live_release": {
+    "manifest_sha256": "69b3cb6d1af4ecc9287b03d9344e4b386e26ed171be8771445ea2ee8afd0d8ec",
+    "release_id": "c1-20261014-ukpn-ev",
+    "status": "COMPLETE",
+    "target_sha256": {
+      "ev_actuals_dno.csv": "b558a6b02ac03d0698bce480d3d9b92ef77d2f375c8e68ed3d4f14c389f55f95",
+      "ev_actuals_la.csv": "b8c737eaedd3970b603175936b2b37c7f3d3ed66788194553e4e42304085e8e6",
+      "ev_actuals_laep.csv": "ec539024ee749d6035446caf65db551bfd07b5e835b0f14d3d37d4f04ab7c0cb"
+    }
+  },
+  "lookups": {
+    "geography_lookup": {
+      "path": "project/output_processed/integration/geography_lookup.csv",
+      "sha256": "4c68cb4f8e6bbf32844b119a6bad56275320b350593385eb38946f79ebbe71f2"
+    },
+    "lsoa_dno": {
+      "path": "lookups/LSOA to DNO.csv",
+      "sha256": "b6a6cf72e4ad5d82bd4e12a28c8ba96880a2c255ad3d6c5bda04a3785d70e591"
+    }
+  },
+  "methodology": {
+    "code": {
+      "files_sha256": {
+        "data_manager/c1_refresh/__init__.py": "1e1de077849489c52952dd39fe3cb9bf09194ad1cdd0bfee1d865edbeb38ee59",
+        "data_manager/c1_refresh/cli.py": "0d4ae3ceb4163d92c296894f546cf95a233cad95d02c40417327fb2f1f27461e",
+        "data_manager/c1_refresh/config.py": "a96a6836578c80ef9cea87829e410744fd450097b6c19ce6e6e0c033e46ed733",
+        "data_manager/c1_refresh/engine.py": "7b8fc22fc9a8022efe27a3ebf9a9a3b1fcfadf61c76a0c5d255a346edf07aa6e",
+        "data_manager/c1_refresh/sources.py": "746f0c06d7b682841504dc28a8a28b19f67153d84828f52080bcd5bcc7176edb",
+        "data_manager/c1_refresh/store.py": "33d880c30ef8af8d4010611334a76d8b2fe1f14c65382025243f2e80259083e8",
+        "experiments/ev_redistribution_c1/c1_method.py": "6b371c6e3b3a37becec5a13422003bad1fa0060c30780beee257b38ec0650c1b",
+        "experiments/ev_redistribution_c1/integration_writer.py": "c84b61e1163b2634edfbb7d138744fe904ac5647ceabe2bd9dc981854b55949f",
+        "experiments/ev_redistribution_c1/run_c1.py": "0eb913900d5343ba135e1b53283390a8a43bc6a7273c48d230627521ccced8bd"
+      },
+      "git_head": "ab1818ac6811233f4fdcbd4966c23c834b82022e",
+      "uncommitted_files": [
+        "data_manager/c1_refresh/__init__.py",
+        "data_manager/c1_refresh/cli.py",
+        "data_manager/c1_refresh/config.py",
+        "data_manager/c1_refresh/engine.py",
+        "data_manager/c1_refresh/sources.py",
+        "data_manager/c1_refresh/store.py"
+      ]
+    },
+    "history_start": "2025 Q1",
+    "lpn_min_share": 0.2,
+    "methodology_id": "C1_DYNAMIC_PRIVATE_EV",
+    "window": "the five quarters of the live release"
+  },
+  "periods": [
+    "2025-03",
+    "2025-06",
+    "2025-09",
+    "2025-12",
+    "2026-03"
+  ],
+  "quarters": [
+    "2025 Q1",
+    "2025 Q2",
+    "2025 Q3",
+    "2025 Q4",
+    "2026 Q1"
+  ],
+  "reporting_quarter": "2026 Q1",
+  "schema": "c1-source-set/1",
+  "seal_sha256": "7ef44d31d77ed6a22ed6fc89cbeb04c09937550f02a532767d679bf0ef406ebd",
+  "source": {
+    "copied_from": "ev/df_VEH0135.csv",
+    "original_filename": "df_VEH0135.csv",
+    "path": "source_sets/SS-VEH0135-RELEASE-c1-20261014-ukpn-ev-ba54465c0ebf/VEH0135.csv",
+    "path_base": "workspace",
+    "release_provenance_prefix": "ba54465c0ebfb7bb",
+    "sha256": "ba54465c0ebfb7bbe298250515497e1512426bb9cd244d0fe5352d3921555379",
+    "size_bytes": 62162719
+  },
+  "source_set_id": "SS-VEH0135-RELEASE-c1-20261014-ukpn-ev-ba54465c0ebf",
+  "status": "RELEASE_SOURCE (bytes of the live release input, for reproduction only)"
+}

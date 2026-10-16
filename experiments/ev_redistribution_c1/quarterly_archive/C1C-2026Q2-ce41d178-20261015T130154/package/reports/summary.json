@@ -1,0 +1,1264 @@
+{
+  "source_set_id": "SS-VEH0135-2026Q2-ce41d17806cf",
+  "reporting_quarter": "2026 Q2",
+  "new_period": "2026-06",
+  "new_quarter_values": {
+    "UKPN": 953624,
+    "EPN": 466621,
+    "LPN": 199846,
+    "SPN": 287157,
+    "BEV": 629236,
+    "PHEV": 324388
+  },
+  "latest_vintage_series": {
+    "2025-03": {
+      "UKPN": 720357,
+      "EPN": 338566,
+      "LPN": 166253,
+      "SPN": 215538,
+      "BEV": 479032,
+      "PHEV": 241325
+    },
+    "2025-06": {
+      "UKPN": 759622,
+      "EPN": 359980,
+      "LPN": 172495,
+      "SPN": 227147,
+      "BEV": 503507,
+      "PHEV": 256115
+    },
+    "2025-09": {
+      "UKPN": 806859,
+      "EPN": 385658,
+      "LPN": 179591,
+      "SPN": 241610,
+      "BEV": 534086,
+      "PHEV": 272773
+    },
+    "2025-12": {
+      "UKPN": 847516,
+      "EPN": 407314,
+      "LPN": 185486,
+      "SPN": 254716,
+      "BEV": 562126,
+      "PHEV": 285390
+    },
+    "2026-03": {
+      "UKPN": 898042,
+      "EPN": 436009,
+      "LPN": 191869,
+      "SPN": 270164,
+      "BEV": 591982,
+      "PHEV": 306060
+    },
+    "2026-06": {
+      "UKPN": 953624,
+      "EPN": 466621,
+      "LPN": 199846,
+      "SPN": 287157,
+      "BEV": 629236,
+      "PHEV": 324388
+    }
+  },
+  "lpn_floor": [
+    {
+      "vintage": "published (2026 Q1 vintage)",
+      "period": "2025-03",
+      "national_bev": 1507803,
+      "national_phev": 698197,
+      "pool_bev": 672936,
+      "pool_phev": 288563,
+      "ukpn_post": 719684,
+      "lpn_post": 166018,
+      "lpn_post_share_pct": 23.0682,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "published (2026 Q1 vintage)",
+      "period": "2025-06",
+      "national_bev": 1618811,
+      "national_phev": 754694,
+      "pool_bev": 711548,
+      "pool_phev": 305773,
+      "ukpn_post": 759063,
+      "lpn_post": 172310,
+      "lpn_post_share_pct": 22.7004,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "published (2026 Q1 vintage)",
+      "period": "2025-09",
+      "national_bev": 1754303,
+      "national_phev": 821511,
+      "pool_bev": 766292,
+      "pool_phev": 328471,
+      "ukpn_post": 806190,
+      "lpn_post": 179394,
+      "lpn_post_share_pct": 22.2521,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "published (2026 Q1 vintage)",
+      "period": "2025-12",
+      "national_bev": 1869394,
+      "national_phev": 867140,
+      "pool_bev": 820536,
+      "pool_phev": 343879,
+      "ukpn_post": 846833,
+      "lpn_post": 185240,
+      "lpn_post_share_pct": 21.8744,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "published (2026 Q1 vintage)",
+      "period": "2026-03",
+      "national_bev": 2003054,
+      "national_phev": 938077,
+      "pool_bev": 870654,
+      "pool_phev": 370325,
+      "ukpn_post": 896098,
+      "lpn_post": 191386,
+      "lpn_post_share_pct": 21.3577,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "latest (2026 Q2 vintage)",
+      "period": "2025-03",
+      "national_bev": 1510318,
+      "national_phev": 698078,
+      "pool_bev": 673893,
+      "pool_phev": 288624,
+      "ukpn_post": 720357,
+      "lpn_post": 166253,
+      "lpn_post_share_pct": 23.0793,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "latest (2026 Q2 vintage)",
+      "period": "2025-06",
+      "national_bev": 1621309,
+      "national_phev": 754535,
+      "pool_bev": 712507,
+      "pool_phev": 305814,
+      "ukpn_post": 759622,
+      "lpn_post": 172495,
+      "lpn_post_share_pct": 22.708,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "latest (2026 Q2 vintage)",
+      "period": "2025-09",
+      "national_bev": 1756765,
+      "national_phev": 821305,
+      "pool_bev": 767286,
+      "pool_phev": 328507,
+      "ukpn_post": 806859,
+      "lpn_post": 179591,
+      "lpn_post_share_pct": 22.258,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "latest (2026 Q2 vintage)",
+      "period": "2025-12",
+      "national_bev": 1871819,
+      "national_phev": 866934,
+      "pool_bev": 821557,
+      "pool_phev": 343929,
+      "ukpn_post": 847516,
+      "lpn_post": 185486,
+      "lpn_post_share_pct": 21.8858,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "latest (2026 Q2 vintage)",
+      "period": "2026-03",
+      "national_bev": 2005429,
+      "national_phev": 942626,
+      "pool_bev": 871820,
+      "pool_phev": 373744,
+      "ukpn_post": 898042,
+      "lpn_post": 191869,
+      "lpn_post_share_pct": 21.3653,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    },
+    {
+      "vintage": "latest (2026 Q2 vintage)",
+      "period": "2026-06",
+      "national_bev": 2168286,
+      "national_phev": 1008335,
+      "pool_bev": 935132,
+      "pool_phev": 397331,
+      "ukpn_post": 953624,
+      "lpn_post": 199846,
+      "lpn_post_share_pct": 20.9565,
+      "lpn_uplift": 0,
+      "lpn_floor_active": false
+    }
+  ],
+  "restatement_ukpn": [
+    {
+      "period": "2025-03",
+      "EV_Type": "BEV",
+      "published": 478318,
+      "recalculated": 479032,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 714,
+      "pct": 0.1493
+    },
+    {
+      "period": "2025-03",
+      "EV_Type": "PHEV",
+      "published": 241366,
+      "recalculated": 241325,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": -41,
+      "pct": -0.017
+    },
+    {
+      "period": "2025-03",
+      "EV_Type": "Total",
+      "published": 719684,
+      "recalculated": 720357,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 673,
+      "pct": 0.0935
+    },
+    {
+      "period": "2025-06",
+      "EV_Type": "BEV",
+      "published": 502907,
+      "recalculated": 503507,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 600,
+      "pct": 0.1193
+    },
+    {
+      "period": "2025-06",
+      "EV_Type": "PHEV",
+      "published": 256156,
+      "recalculated": 256115,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": -41,
+      "pct": -0.016
+    },
+    {
+      "period": "2025-06",
+      "EV_Type": "Total",
+      "published": 759063,
+      "recalculated": 759622,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 559,
+      "pct": 0.0736
+    },
+    {
+      "period": "2025-09",
+      "EV_Type": "BEV",
+      "published": 533367,
+      "recalculated": 534086,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 719,
+      "pct": 0.1348
+    },
+    {
+      "period": "2025-09",
+      "EV_Type": "PHEV",
+      "published": 272823,
+      "recalculated": 272773,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": -50,
+      "pct": -0.0183
+    },
+    {
+      "period": "2025-09",
+      "EV_Type": "Total",
+      "published": 806190,
+      "recalculated": 806859,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 669,
+      "pct": 0.083
+    },
+    {
+      "period": "2025-12",
+      "EV_Type": "BEV",
+      "published": 561408,
+      "recalculated": 562126,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 718,
+      "pct": 0.1279
+    },
+    {
+      "period": "2025-12",
+      "EV_Type": "PHEV",
+      "published": 285425,
+      "recalculated": 285390,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": -35,
+      "pct": -0.0123
+    },
+    {
+      "period": "2025-12",
+      "EV_Type": "Total",
+      "published": 846833,
+      "recalculated": 847516,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 683,
+      "pct": 0.0807
+    },
+    {
+      "period": "2026-03",
+      "EV_Type": "BEV",
+      "published": 591291,
+      "recalculated": 591982,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 691,
+      "pct": 0.1169
+    },
+    {
+      "period": "2026-03",
+      "EV_Type": "PHEV",
+      "published": 304807,
+      "recalculated": 306060,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 1253,
+      "pct": 0.4111
+    },
+    {
+      "period": "2026-03",
+      "EV_Type": "Total",
+      "published": 896098,
+      "recalculated": 898042,
+      "level": "UKPN",
+      "geography": "UKPN",
+      "geography_name": "UKPN",
+      "diff": 1944,
+      "pct": 0.2169
+    }
+  ],
+  "restatement_dno": [
+    {
+      "period": "2025-03",
+      "EV_Type": "Total",
+      "published": 338356,
+      "recalculated": 338566,
+      "level": "DNO",
+      "geography": "EPN",
+      "geography_name": "EPN",
+      "diff": 210,
+      "pct": 0.0621
+    },
+    {
+      "period": "2025-06",
+      "EV_Type": "Total",
+      "published": 359833,
+      "recalculated": 359980,
+      "level": "DNO",
+      "geography": "EPN",
+      "geography_name": "EPN",
+      "diff": 147,
+      "pct": 0.0409
+    },
+    {
+      "period": "2025-09",
+      "EV_Type": "Total",
+      "published": 385455,
+      "recalculated": 385658,
+      "level": "DNO",
+      "geography": "EPN",
+      "geography_name": "EPN",
+      "diff": 203,
+      "pct": 0.0527
+    },
+    {
+      "period": "2025-12",
+      "EV_Type": "Total",
+      "published": 407129,
+      "recalculated": 407314,
+      "level": "DNO",
+      "geography": "EPN",
+      "geography_name": "EPN",
+      "diff": 185,
+      "pct": 0.0454
+    },
+    {
+      "period": "2026-03",
+      "EV_Type": "Total",
+      "published": 435157,
+      "recalculated": 436009,
+      "level": "DNO",
+      "geography": "EPN",
+      "geography_name": "EPN",
+      "diff": 852,
+      "pct": 0.1958
+    },
+    {
+      "period": "2025-03",
+      "EV_Type": "Total",
+      "published": 166018,
+      "recalculated": 166253,
+      "level": "DNO",
+      "geography": "LPN",
+      "geography_name": "LPN",
+      "diff": 235,
+      "pct": 0.1416
+    },
+    {
+      "period": "2025-06",
+      "EV_Type": "Total",
+      "published": 172310,
+      "recalculated": 172495,
+      "level": "DNO",
+      "geography": "LPN",
+      "geography_name": "LPN",
+      "diff": 185,
+      "pct": 0.1074
+    },
+    {
+      "period": "2025-09",
+      "EV_Type": "Total",
+      "published": 179394,
+      "recalculated": 179591,
+      "level": "DNO",
+      "geography": "LPN",
+      "geography_name": "LPN",
+      "diff": 197,
+      "pct": 0.1098
+    },
+    {
+      "period": "2025-12",
+      "EV_Type": "Total",
+      "published": 185240,
+      "recalculated": 185486,
+      "level": "DNO",
+      "geography": "LPN",
+      "geography_name": "LPN",
+      "diff": 246,
+      "pct": 0.1328
+    },
+    {
+      "period": "2026-03",
+      "EV_Type": "Total",
+      "published": 191386,
+      "recalculated": 191869,
+      "level": "DNO",
+      "geography": "LPN",
+      "geography_name": "LPN",
+      "diff": 483,
+      "pct": 0.2524
+    },
+    {
+      "period": "2025-03",
+      "EV_Type": "Total",
+      "published": 215310,
+      "recalculated": 215538,
+      "level": "DNO",
+      "geography": "SPN",
+      "geography_name": "SPN",
+      "diff": 228,
+      "pct": 0.1059
+    },
+    {
+      "period": "2025-06",
+      "EV_Type": "Total",
+      "published": 226920,
+      "recalculated": 227147,
+      "level": "DNO",
+      "geography": "SPN",
+      "geography_name": "SPN",
+      "diff": 227,
+      "pct": 0.1
+    },
+    {
+      "period": "2025-09",
+      "EV_Type": "Total",
+      "published": 241341,
+      "recalculated": 241610,
+      "level": "DNO",
+      "geography": "SPN",
+      "geography_name": "SPN",
+      "diff": 269,
+      "pct": 0.1115
+    },
+    {
+      "period": "2025-12",
+      "EV_Type": "Total",
+      "published": 254464,
+      "recalculated": 254716,
+      "level": "DNO",
+      "geography": "SPN",
+      "geography_name": "SPN",
+      "diff": 252,
+      "pct": 0.099
+    },
+    {
+      "period": "2026-03",
+      "EV_Type": "Total",
+      "published": 269555,
+      "recalculated": 270164,
+      "level": "DNO",
+      "geography": "SPN",
+      "geography_name": "SPN",
+      "diff": 609,
+      "pct": 0.2259
+    }
+  ],
+  "affected_geographies": {
+    "DNO": 3,
+    "LA": 121,
+    "LAEP": 14,
+    "LSOA": 2299
+  },
+  "largest_la_abs": [
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2026-03",
+      "published": 2524,
+      "recalculated": 2634,
+      "diff": 110,
+      "pct": 4.3582
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-06",
+      "published": 2220,
+      "recalculated": 2321,
+      "diff": 101,
+      "pct": 4.5495
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-09",
+      "published": 2321,
+      "recalculated": 2418,
+      "diff": 97,
+      "pct": 4.1792
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-03",
+      "published": 2165,
+      "recalculated": 2260,
+      "diff": 95,
+      "pct": 4.388
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-12",
+      "published": 2413,
+      "recalculated": 2506,
+      "diff": 93,
+      "pct": 3.8541
+    },
+    {
+      "geography": "E06000060",
+      "geography_name": "Buckinghamshire",
+      "period": "2026-03",
+      "published": 19042,
+      "recalculated": 19089,
+      "diff": 47,
+      "pct": 0.2468
+    },
+    {
+      "geography": "E09000028",
+      "geography_name": "Southwark",
+      "period": "2025-03",
+      "published": 7290,
+      "recalculated": 7333,
+      "diff": 43,
+      "pct": 0.5898
+    },
+    {
+      "geography": "E06000056",
+      "geography_name": "Central Bedfordshire",
+      "period": "2026-03",
+      "published": 19638,
+      "recalculated": 19679,
+      "diff": 41,
+      "pct": 0.2088
+    },
+    {
+      "geography": "E09000022",
+      "geography_name": "Lambeth",
+      "period": "2026-03",
+      "published": 8399,
+      "recalculated": 8440,
+      "diff": 41,
+      "pct": 0.4882
+    },
+    {
+      "geography": "E09000022",
+      "geography_name": "Lambeth",
+      "period": "2025-12",
+      "published": 8007,
+      "recalculated": 8047,
+      "diff": 40,
+      "pct": 0.4996
+    }
+  ],
+  "largest_la_pct": [
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-06",
+      "published": 2220,
+      "recalculated": 2321,
+      "diff": 101,
+      "pct": 4.5495
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-03",
+      "published": 2165,
+      "recalculated": 2260,
+      "diff": 95,
+      "pct": 4.388
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2026-03",
+      "published": 2524,
+      "recalculated": 2634,
+      "diff": 110,
+      "pct": 4.3582
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-09",
+      "published": 2321,
+      "recalculated": 2418,
+      "diff": 97,
+      "pct": 4.1792
+    },
+    {
+      "geography": "E07000216",
+      "geography_name": "Waverley",
+      "period": "2025-12",
+      "published": 2413,
+      "recalculated": 2506,
+      "diff": 93,
+      "pct": 3.8541
+    },
+    {
+      "geography": "E07000177",
+      "geography_name": "Cherwell",
+      "period": "2026-03",
+      "published": 94,
+      "recalculated": 95,
+      "diff": 1,
+      "pct": 1.0638
+    },
+    {
+      "geography": "E07000202",
+      "geography_name": "Ipswich",
+      "period": "2026-03",
+      "published": 3756,
+      "recalculated": 3793,
+      "diff": 37,
+      "pct": 0.9851
+    },
+    {
+      "geography": "E09000001",
+      "geography_name": "City of London",
+      "period": "2026-03",
+      "published": 484,
+      "recalculated": 488,
+      "diff": 4,
+      "pct": 0.8264
+    },
+    {
+      "geography": "E07000200",
+      "geography_name": "Babergh",
+      "period": "2026-03",
+      "published": 5024,
+      "recalculated": 5054,
+      "diff": 30,
+      "pct": 0.5971
+    },
+    {
+      "geography": "E09000028",
+      "geography_name": "Southwark",
+      "period": "2025-03",
+      "published": 7290,
+      "recalculated": 7333,
+      "diff": 43,
+      "pct": 0.5898
+    }
+  ],
+  "largest_laep_abs": [
+    {
+      "geography": "North South London subregional LAEP",
+      "geography_name": "North South London subregional LAEP",
+      "period": "2026-03",
+      "published": 138153,
+      "recalculated": 138500,
+      "diff": 347,
+      "pct": 0.2512
+    },
+    {
+      "geography": "North South London subregional LAEP",
+      "geography_name": "North South London subregional LAEP",
+      "period": "2025-12",
+      "published": 133602,
+      "recalculated": 133789,
+      "diff": 187,
+      "pct": 0.14
+    },
+    {
+      "geography": "Norfolk - Suffolk LAEP",
+      "geography_name": "Norfolk - Suffolk LAEP",
+      "period": "2026-03",
+      "published": 69966,
+      "recalculated": 70145,
+      "diff": 179,
+      "pct": 0.2558
+    },
+    {
+      "geography": "West London LAEP",
+      "geography_name": "West London LAEP",
+      "period": "2026-03",
+      "published": 92562,
+      "recalculated": 92730,
+      "diff": 168,
+      "pct": 0.1815
+    },
+    {
+      "geography": "Outer East LAEP",
+      "geography_name": "Outer East LAEP",
+      "period": "2026-03",
+      "published": 64876,
+      "recalculated": 65041,
+      "diff": 165,
+      "pct": 0.2543
+    },
+    {
+      "geography": "North South London subregional LAEP",
+      "geography_name": "North South London subregional LAEP",
+      "period": "2025-03",
+      "published": 118871,
+      "recalculated": 119031,
+      "diff": 160,
+      "pct": 0.1346
+    },
+    {
+      "geography": "Essex LAEP",
+      "geography_name": "Essex LAEP",
+      "period": "2026-03",
+      "published": 90658,
+      "recalculated": 90815,
+      "diff": 157,
+      "pct": 0.1732
+    },
+    {
+      "geography": "North South London subregional LAEP",
+      "geography_name": "North South London subregional LAEP",
+      "period": "2025-09",
+      "published": 129067,
+      "recalculated": 129206,
+      "diff": 139,
+      "pct": 0.1077
+    },
+    {
+      "geography": "North South London subregional LAEP",
+      "geography_name": "North South London subregional LAEP",
+      "period": "2025-06",
+      "published": 123682,
+      "recalculated": 123816,
+      "diff": 134,
+      "pct": 0.1083
+    },
+    {
+      "geography": "West London LAEP",
+      "geography_name": "West London LAEP",
+      "period": "2025-09",
+      "published": 87464,
+      "recalculated": 87540,
+      "diff": 76,
+      "pct": 0.0869
+    }
+  ],
+  "largest_laep_pct": [
+    {
+      "geography": "City of London LAEP",
+      "geography_name": "City of London LAEP",
+      "period": "2026-03",
+      "published": 484,
+      "recalculated": 488,
+      "diff": 4,
+      "pct": 0.8264
+    },
+    {
+      "geography": "Norfolk - Suffolk LAEP",
+      "geography_name": "Norfolk - Suffolk LAEP",
+      "period": "2026-03",
+      "published": 69966,
+      "recalculated": 70145,
+      "diff": 179,
+      "pct": 0.2558
+    },
+    {
+      "geography": "Outer East LAEP",
+      "geography_name": "Outer East LAEP",
+      "period": "2026-03",
+      "published": 64876,
+      "recalculated": 65041,
+      "diff": 165,
+      "pct": 0.2543
+    },
+    {
+      "geography": "North South London subregional LAEP",
+      "geography_name": "North South London subregional LAEP",
+      "period": "2026-03",
+      "published": 138153,
+      "recalculated": 138500,
+      "diff": 347,
+      "pct": 0.2512
+    },
+    {
+      "geography": "Enfield LAEP",
+      "geography_name": "Enfield LAEP",
+      "period": "2026-03",
+      "published": 12753,
+      "recalculated": 12784,
+      "diff": 31,
+      "pct": 0.2431
+    },
+    {
+      "geography": "Isle of Dogs LAEP",
+      "geography_name": "Isle of Dogs LAEP",
+      "period": "2026-03",
+      "published": 8718,
+      "recalculated": 8736,
+      "diff": 18,
+      "pct": 0.2065
+    },
+    {
+      "geography": "Westminster LAEP",
+      "geography_name": "Westminster LAEP",
+      "period": "2026-03",
+      "published": 10728,
+      "recalculated": 10750,
+      "diff": 22,
+      "pct": 0.2051
+    },
+    {
+      "geography": "Ashford LAEP",
+      "geography_name": "Ashford LAEP",
+      "period": "2026-03",
+      "published": 7163,
+      "recalculated": 7177,
+      "diff": 14,
+      "pct": 0.1954
+    },
+    {
+      "geography": "West London LAEP",
+      "geography_name": "West London LAEP",
+      "period": "2026-03",
+      "published": 92562,
+      "recalculated": 92730,
+      "diff": 168,
+      "pct": 0.1815
+    },
+    {
+      "geography": "Essex LAEP",
+      "geography_name": "Essex LAEP",
+      "period": "2026-03",
+      "published": 90658,
+      "recalculated": 90815,
+      "diff": 157,
+      "pct": 0.1732
+    }
+  ],
+  "largest_lsoa_abs": [
+    {
+      "period": "2026-03",
+      "LSOA21CD": "E01030862",
+      "EV_Type": "BEV",
+      "DNO": "SPN",
+      "LAD22NM": "Waverley",
+      "published": 126,
+      "recalculated": 210,
+      "diff": 84,
+      "raw_diff": 60
+    },
+    {
+      "period": "2025-06",
+      "LSOA21CD": "E01030862",
+      "EV_Type": "BEV",
+      "DNO": "SPN",
+      "LAD22NM": "Waverley",
+      "published": 99,
+      "recalculated": 181,
+      "diff": 82,
+      "raw_diff": 60
+    },
+    {
+      "period": "2025-03",
+      "LSOA21CD": "E01030862",
+      "EV_Type": "BEV",
+      "DNO": "SPN",
+      "LAD22NM": "Waverley",
+      "published": 100,
+      "recalculated": 176,
+      "diff": 76,
+      "raw_diff": 60
+    },
+    {
+      "period": "2025-09",
+      "LSOA21CD": "E01030862",
+      "EV_Type": "BEV",
+      "DNO": "SPN",
+      "LAD22NM": "Waverley",
+      "published": 112,
+      "recalculated": 188,
+      "diff": 76,
+      "raw_diff": 60
+    },
+    {
+      "period": "2025-12",
+      "LSOA21CD": "E01030862",
+      "EV_Type": "BEV",
+      "DNO": "SPN",
+      "LAD22NM": "Waverley",
+      "published": 123,
+      "recalculated": 196,
+      "diff": 73,
+      "raw_diff": 60
+    },
+    {
+      "period": "2025-09",
+      "LSOA21CD": "E01003979",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Southwark",
+      "published": 37,
+      "recalculated": 62,
+      "diff": 25,
+      "raw_diff": 25
+    },
+    {
+      "period": "2026-03",
+      "LSOA21CD": "E01003979",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Southwark",
+      "published": 30,
+      "recalculated": 55,
+      "diff": 25,
+      "raw_diff": 25
+    },
+    {
+      "period": "2025-03",
+      "LSOA21CD": "E01003979",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Southwark",
+      "published": 28,
+      "recalculated": 53,
+      "diff": 25,
+      "raw_diff": 25
+    },
+    {
+      "period": "2025-12",
+      "LSOA21CD": "E01003979",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Southwark",
+      "published": 37,
+      "recalculated": 62,
+      "diff": 25,
+      "raw_diff": 25
+    },
+    {
+      "period": "2025-06",
+      "LSOA21CD": "E01003979",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Southwark",
+      "published": 36,
+      "recalculated": 61,
+      "diff": 25,
+      "raw_diff": 25
+    },
+    {
+      "period": "2025-06",
+      "LSOA21CD": "E01032582",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Lambeth",
+      "published": 45,
+      "recalculated": 64,
+      "diff": 19,
+      "raw_diff": 19
+    },
+    {
+      "period": "2025-03",
+      "LSOA21CD": "E01032582",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Lambeth",
+      "published": 46,
+      "recalculated": 65,
+      "diff": 19,
+      "raw_diff": 19
+    },
+    {
+      "period": "2025-09",
+      "LSOA21CD": "E01032582",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Lambeth",
+      "published": 48,
+      "recalculated": 67,
+      "diff": 19,
+      "raw_diff": 19
+    },
+    {
+      "period": "2025-12",
+      "LSOA21CD": "E01032582",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Lambeth",
+      "published": 51,
+      "recalculated": 70,
+      "diff": 19,
+      "raw_diff": 19
+    },
+    {
+      "period": "2026-03",
+      "LSOA21CD": "E01032582",
+      "EV_Type": "BEV",
+      "DNO": "LPN",
+      "LAD22NM": "Lambeth",
+      "published": 55,
+      "recalculated": 74,
+      "diff": 19,
+      "raw_diff": 19
+    }
+  ],
+  "source_revisions_total": [
+    {
+      "quarter": "2025 Q1",
+      "period": "2025-03",
+      "fuel": "BEV",
+      "keepership": "Total",
+      "national_old": 1507803,
+      "national_new": 1510318,
+      "rows_changed": 813,
+      "rows_changed_suppression": 9,
+      "rows_only_old": 0,
+      "rows_only_new": 6,
+      "diff": 2515,
+      "pct": 0.1668
+    },
+    {
+      "quarter": "2025 Q1",
+      "period": "2025-03",
+      "fuel": "PHEV",
+      "keepership": "Total",
+      "national_old": 698197,
+      "national_new": 698078,
+      "rows_changed": 90,
+      "rows_changed_suppression": 4,
+      "rows_only_old": 5,
+      "rows_only_new": 0,
+      "diff": -119,
+      "pct": -0.017
+    },
+    {
+      "quarter": "2025 Q2",
+      "period": "2025-06",
+      "fuel": "BEV",
+      "keepership": "Total",
+      "national_old": 1618811,
+      "national_new": 1621309,
+      "rows_changed": 816,
+      "rows_changed_suppression": 6,
+      "rows_only_old": 0,
+      "rows_only_new": 6,
+      "diff": 2498,
+      "pct": 0.1543
+    },
+    {
+      "quarter": "2025 Q2",
+      "period": "2025-06",
+      "fuel": "PHEV",
+      "keepership": "Total",
+      "national_old": 754694,
+      "national_new": 754535,
+      "rows_changed": 107,
+      "rows_changed_suppression": 3,
+      "rows_only_old": 5,
+      "rows_only_new": 0,
+      "diff": -159,
+      "pct": -0.0211
+    },
+    {
+      "quarter": "2025 Q3",
+      "period": "2025-09",
+      "fuel": "BEV",
+      "keepership": "Total",
+      "national_old": 1754303,
+      "national_new": 1756765,
+      "rows_changed": 817,
+      "rows_changed_suppression": 3,
+      "rows_only_old": 0,
+      "rows_only_new": 6,
+      "diff": 2462,
+      "pct": 0.1403
+    },
+    {
+      "quarter": "2025 Q3",
+      "period": "2025-09",
+      "fuel": "PHEV",
+      "keepership": "Total",
+      "national_old": 821511,
+      "national_new": 821305,
+      "rows_changed": 141,
+      "rows_changed_suppression": 4,
+      "rows_only_old": 5,
+      "rows_only_new": 0,
+      "diff": -206,
+      "pct": -0.0251
+    },
+    {
+      "quarter": "2025 Q4",
+      "period": "2025-12",
+      "fuel": "BEV",
+      "keepership": "Total",
+      "national_old": 1869394,
+      "national_new": 1871819,
+      "rows_changed": 811,
+      "rows_changed_suppression": 2,
+      "rows_only_old": 0,
+      "rows_only_new": 6,
+      "diff": 2425,
+      "pct": 0.1297
+    },
+    {
+      "quarter": "2025 Q4",
+      "period": "2025-12",
+      "fuel": "PHEV",
+      "keepership": "Total",
+      "national_old": 867140,
+      "national_new": 866934,
+      "rows_changed": 170,
+      "rows_changed_suppression": 4,
+      "rows_only_old": 5,
+      "rows_only_new": 0,
+      "diff": -206,
+      "pct": -0.0238
+    },
+    {
+      "quarter": "2026 Q1",
+      "period": "2026-03",
+      "fuel": "BEV",
+      "keepership": "Total",
+      "national_old": 2003054,
+      "national_new": 2005429,
+      "rows_changed": 792,
+      "rows_changed_suppression": 0,
+      "rows_only_old": 0,
+      "rows_only_new": 6,
+      "diff": 2375,
+      "pct": 0.1186
+    },
+    {
+      "quarter": "2026 Q1",
+      "period": "2026-03",
+      "fuel": "PHEV",
+      "keepership": "Total",
+      "national_old": 938077,
+      "national_new": 942626,
+      "rows_changed": 1508,
+      "rows_changed_suppression": 18,
+      "rows_only_old": 5,
+      "rows_only_new": 0,
+      "diff": 4549,
+      "pct": 0.4849
+    }
+  ],
+  "source_geography": {
+    "codes_old": 41597,
+    "codes_new": 41599,
+    "n_only_old": 2,
+    "n_only_new": 4,
+    "schema_old_cols": [
+      "LSOA21CD",
+      "LSOA21NM",
+      "Fuel",
+      "Keepership"
+    ],
+    "schema_new_cols": [
+      "LSOA21CD",
+      "LSOA21NM",
+      "Fuel",
+      "Keepership"
+    ]
+  },
+  "canonical_geography": {
+    "canonical_ukpn_lsoas": 11023,
+    "canonical_with_rows_new_source": 10959,
+    "canonical_without_rows_new_source": 64,
+    "canonical_with_rows_old_source": 10959,
+    "canonical_newly_present": {
+      "count": 0,
+      "examples": []
+    },
+    "canonical_no_longer_present": {
+      "count": 0,
+      "examples": []
+    },
+    "note": "Canonical membership comes from lookups/LSOA to DNO.csv and is never changed to match a source; canonical LSOAs without source rows are kept as explicit zeros (approved rule)."
+  },
+  "qa_failed": [],
+  "append_vs_restated_bytes_differ": {
+    "ev_actuals_dno.csv": true,
+    "ev_actuals_la.csv": true,
+    "ev_actuals_laep.csv": true
+  }
+}

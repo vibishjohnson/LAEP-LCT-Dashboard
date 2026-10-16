@@ -1,0 +1,40 @@
+{
+  "label": "VEH0135-2026Q2-v1",
+  "version_id": 1,
+  "dataset": "VEH0135",
+  "reporting_period": "2026 Q2",
+  "period_end": "2026-06-30",
+  "original_filename": "df_VEH0135 (7).csv",
+  "format": "csv",
+  "sheet": null,
+  "size_bytes": 61456307,
+  "uploaded_at": "2026-10-15T12:51:09.435969Z",
+  "staged_at": "2026-10-15T12:51:41.743738Z",
+  "rows": 286113,
+  "supersedes_version_id": null,
+  "restates_version_id": null,
+  "restatement_reason": null,
+  "production_source_at_staging": {
+    "path": "ev/df_VEH0135.csv",
+    "sha256": "ba54465c0ebfb7bbe298250515497e1512426bb9cd244d0fe5352d3921555379",
+    "size_bytes": 62162719,
+    "modified": "2026-09-30 09:45",
+    "latest_quarter": "2026 Q1",
+    "rows": 293825
+  },
+  "status": "STAGED (candidate source; not approved for publication)",
+  "files": {
+    "original.csv": {
+      "sha256": "ce41d17806cf3210a589fcc7bfd9297244e247e48d4a8767f5840879f41f2a6a",
+      "bytes": 61456307
+    },
+    "canonical.csv": {
+      "sha256": "785ba3481d51873016b36b1808415f64335afbfc0f35aeed5af9e7017cd166e6",
+      "bytes": 61170193
+    },
+    "profile.json": {
+      "sha256": "a8380e25944698573794505957703dae0fc0b2f0e6341fd25c52808a2e665e1a",
+      "bytes": 65161
+    }
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "candidate_id": "C1C-2026Q2-ce41d178-20261015T130154",
+  "candidate_seal_sha256": "605d0c595e225324237e6ab979daa72118592fb503429a628322daf3b9a631a5",
+  "created_at": "2026-10-15T15:00:27.118503+00:00",
+  "decided_at": "2026-10-15T14:55:50Z",
+  "decided_by": "vibishjohnson (repository user; Option B approved in the Phase 13B instruction)",
+  "decision_record_sha256": "d8bad1c56d0ac4c8fe593959b05a516be6e831d6191c659e6584c854c8f77bf5",
+  "expected_target_sha256": {
+    "ev_actuals_dno.csv": "03147ed830414f5af9f542a4ff3bf47ccc5d98ab88af991684e64413515039d0",
+    "ev_actuals_la.csv": "e8421703d86b59caba342bccdb22bb582f9f32c69bd4ffdc6d3d7e4e4f2b825f",
+    "ev_actuals_laep.csv": "950cc3aabb2a06aaa980e9fc8b0d4868f27ccf05bcfd98c5fd3403b18fcbe91f"
+  },
+  "expected_totals": {
+    "2025-03": {
+      "BEV": 479032,
+      "EPN": 338566,
+      "LPN": 166253,
+      "PHEV": 241325,
+      "SPN": 215538,
+      "UKPN": 720357
+    },
+    "2025-06": {
+      "BEV": 503507,
+      "EPN": 359980,
+      "LPN": 172495,
+      "PHEV": 256115,
+      "SPN": 227147,
+      "UKPN": 759622
+    },
+    "2025-09": {
+      "BEV": 534086,
+      "EPN": 385658,
+      "LPN": 179591,
+      "PHEV": 272773,
+      "SPN": 241610,
+      "UKPN": 806859
+    },
+    "2025-12": {
+      "BEV": 562126,
+      "EPN": 407314,
+      "LPN": 185486,
+      "PHEV": 285390,
+      "SPN": 254716,
+      "UKPN": 847516
+    },
+    "2026-03": {
+      "BEV": 591982,
+      "EPN": 436009,
+      "LPN": 191869,
+      "PHEV": 306060,
+      "SPN": 270164,
+      "UKPN": 898042
+    },
+    "2026-06": {
+      "BEV": 629236,
+      "EPN": 466621,
+      "LPN": 199846,
+      "PHEV": 324388,
+      "SPN": 287157,
+      "UKPN": 953624
+    }
+  },
+  "files_sha256": {
+    "candidate_manifest.json": "97c13489833fae043498b0d9ee67a5067f4153d2e497c4b8145156505cd52675",
+    "decision_record.json": "dc1181ea9d256eee5ae5d3262cfa23ec9f3668ffc283ac59b379acd1de77c485",
+    "payload/ev_actuals_dno.csv": "03147ed830414f5af9f542a4ff3bf47ccc5d98ab88af991684e64413515039d0",
+    "payload/ev_actuals_la.csv": "e8421703d86b59caba342bccdb22bb582f9f32c69bd4ffdc6d3d7e4e4f2b825f",
+    "payload/ev_actuals_laep.csv": "950cc3aabb2a06aaa980e9fc8b0d4868f27ccf05bcfd98c5fd3403b18fcbe91f",
+    "reports/qa_checks.csv": "1cd26e1ad4307c796e7978e11d348c30666d2f50abdf728f94a7cc543c841158",
+    "reports/restatement_geography.csv": "1a0d21252c99297a2ffa63f3c04332a457a4bb96e2d12cd29d1c421ac3d25396",
+    "reports/summary.json": "7d7068780444f8f63361914b3a9edb07e0fcec48e205f3ecbb83cc7e085dd305",
+    "source_set_manifest.json": "fc2369efec37610b2f83fb6362a9f128f1a5d61d6a0967c7d46ada9fc4dcfcce"
+  },
+  "lpn_min_share": 0.2,
+  "methodology_id": "C1_DYNAMIC_PRIVATE_EV",
+  "new_period": "2026-06",
+  "option": "B",
+  "option_name": "RESTATED",
+  "package_id": "C1C-2026Q2-ce41d178-20261015T130154-B",
+  "periods": [
+    "2025-03",
+    "2025-06",
+    "2025-09",
+    "2025-12",
+    "2026-03",
+    "2026-06"
+  ],
+  "previous_manifest_sha256": "69b3cb6d1af4ecc9287b03d9344e4b386e26ed171be8771445ea2ee8afd0d8ec",
+  "previous_release_id": "c1-20261014-ukpn-ev",
+  "previous_target_sha256": {
+    "ev_actuals_dno.csv": "b558a6b02ac03d0698bce480d3d9b92ef77d2f375c8e68ed3d4f14c389f55f95",
+    "ev_actuals_la.csv": "b8c737eaedd3970b603175936b2b37c7f3d3ed66788194553e4e42304085e8e6",
+    "ev_actuals_laep.csv": "ec539024ee749d6035446caf65db551bfd07b5e835b0f14d3d37d4f04ab7c0cb"
+  },
+  "restatement_report_sha256": "1a0d21252c99297a2ffa63f3c04332a457a4bb96e2d12cd29d1c421ac3d25396",
+  "schema": "c1-release-package/1",
+  "seal_sha256": "3e042d9988ea88e4d2ea35087bf2566cfd4131073e725dee7c6d28b72ae03abe",
+  "source_bytes": 61456307,
+  "source_set_id": "SS-VEH0135-2026Q2-ce41d17806cf",
+  "source_set_seal_sha256": "550040d50173dfef4624d68b9a4988a76a254795e01be75c33d5d4a22c2a194b",
+  "source_sha256": "ce41d17806cf3210a589fcc7bfd9297244e247e48d4a8767f5840879f41f2a6a",
+  "status": "PREPARED (not authorised for production)"
+}

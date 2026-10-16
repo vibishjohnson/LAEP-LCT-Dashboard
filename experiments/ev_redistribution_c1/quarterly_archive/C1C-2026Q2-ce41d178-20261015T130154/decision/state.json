@@ -1,0 +1,37 @@
+{
+  "candidate_id": "C1C-2026Q2-ce41d178-20261015T130154",
+  "state": "APPROVED_FOR_FUTURE_RELEASE",
+  "history": [
+    {
+      "state": "SOURCE_VALIDATED",
+      "at": "2026-10-15T13:02:17Z",
+      "evidence": "SS-VEH0135-2026Q2-ce41d17806cf"
+    },
+    {
+      "state": "CANDIDATE_GENERATED",
+      "at": "2026-10-15T13:02:17Z",
+      "evidence": "605d0c595e225324237e6ab979daa72118592fb503429a628322daf3b9a631a5"
+    },
+    {
+      "state": "QA_PASSED",
+      "at": "2026-10-15T13:02:17Z",
+      "evidence": "255/255 checks"
+    },
+    {
+      "state": "RESTATEMENTS_DETECTED",
+      "at": "2026-10-15T13:02:17Z",
+      "evidence": "append-only and restated integration files differ (see reports/restatement_*.csv)"
+    },
+    {
+      "state": "AWAITING_RESTATEMENT_DECISION",
+      "at": "2026-10-15T13:02:17Z",
+      "evidence": "user decision required: A, B or C"
+    },
+    {
+      "state": "APPROVED_FOR_FUTURE_RELEASE",
+      "at": "2026-10-15T14:55:50Z",
+      "evidence": "d8bad1c56d0ac4c8fe593959b05a516be6e831d6191c659e6584c854c8f77bf5"
+    }
+  ],
+  "qa_failed": false
+}

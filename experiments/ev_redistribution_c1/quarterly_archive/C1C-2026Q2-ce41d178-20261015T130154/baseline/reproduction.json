@@ -1,0 +1,128 @@
+{
+  "source_set_id": "SS-VEH0135-RELEASE-c1-20261014-ukpn-ev-ba54465c0ebf",
+  "source_sha256": "ba54465c0ebfb7bbe298250515497e1512426bb9cd244d0fe5352d3921555379",
+  "periods": [
+    "2025-03",
+    "2025-06",
+    "2025-09",
+    "2025-12",
+    "2026-03"
+  ],
+  "rows_published": 110230,
+  "rows_reproduced": 110230,
+  "columns_identical": true,
+  "numeric_cell_differences": {
+    "methodology_id": 0,
+    "period": 0,
+    "LSOA21CD": 0,
+    "DNO": 0,
+    "LAD22CD": 0,
+    "LAD22NM": 0,
+    "LAEP": 0,
+    "EV_Type": 0,
+    "raw_total": 0,
+    "raw_private": 0,
+    "raw_company": 0,
+    "raw_unclassified": 0,
+    "retained_private": 0,
+    "retained_company_diag": 0,
+    "retained_unclassified_diag": 0,
+    "retained_total": 0,
+    "pooled_total": 0,
+    "redistribution_received": 0,
+    "post_redistribution": 0,
+    "lpn_uplift": 0,
+    "final_estimated_stock": 0,
+    "recipient_weight": 0,
+    "estimate_type": 0,
+    "unclassified_treatment": 0,
+    "lpn_min_share": 0
+  },
+  "numeric_identical": true,
+  "provenance_fields_differ": {
+    "source_veh0135_sha256": {
+      "published": [
+        "ba54465c0ebfb7bb"
+      ],
+      "reproduced": [
+        "ba54465c0ebfb7bb"
+      ]
+    },
+    "source_lsoa_dno_sha256": {
+      "published": [
+        "b6a6cf72e4ad5d82"
+      ],
+      "reproduced": [
+        "b6a6cf72e4ad5d82"
+      ]
+    },
+    "code_git_head": {
+      "published": [
+        "97e855f"
+      ],
+      "reproduced": [
+        "ab1818a"
+      ]
+    },
+    "run_utc": {
+      "published": [
+        "2026-10-12T13:15:08Z"
+      ],
+      "reproduced": [
+        "2026-10-15T12:50:46Z"
+      ]
+    }
+  },
+  "integration_bytes_identical": {
+    "ev_actuals_dno.csv": true,
+    "ev_actuals_la.csv": true,
+    "ev_actuals_laep.csv": true
+  },
+  "integration_sha256": {
+    "ev_actuals_dno.csv": "b558a6b02ac03d0698bce480d3d9b92ef77d2f375c8e68ed3d4f14c389f55f95",
+    "ev_actuals_la.csv": "b8c737eaedd3970b603175936b2b37c7f3d3ed66788194553e4e42304085e8e6",
+    "ev_actuals_laep.csv": "ec539024ee749d6035446caf65db551bfd07b5e835b0f14d3d37d4f04ab7c0cb"
+  },
+  "totals": {
+    "2025-03": {
+      "UKPN": 719684,
+      "EPN": 338356,
+      "LPN": 166018,
+      "SPN": 215310,
+      "uplift": 0
+    },
+    "2025-06": {
+      "UKPN": 759063,
+      "EPN": 359833,
+      "LPN": 172310,
+      "SPN": 226920,
+      "uplift": 0
+    },
+    "2025-09": {
+      "UKPN": 806190,
+      "EPN": 385455,
+      "LPN": 179394,
+      "SPN": 241341,
+      "uplift": 0
+    },
+    "2025-12": {
+      "UKPN": 846833,
+      "EPN": 407129,
+      "LPN": 185240,
+      "SPN": 254464,
+      "uplift": 0
+    },
+    "2026-03": {
+      "UKPN": 896098,
+      "EPN": 435157,
+      "LPN": 191386,
+      "SPN": 269555,
+      "uplift": 0
+    }
+  },
+  "lpn_floor": 0.2,
+  "method_a_rows": 0,
+  "seconds": 5.2,
+  "at": "2026-10-15T12:50:51Z",
+  "passed": true
+}

@@ -1,0 +1,128 @@
+{
+  "baseline_reproduction_passed": true,
+  "baseline_source_set_id": "SS-VEH0135-RELEASE-c1-20261014-ukpn-ev-ba54465c0ebf",
+  "candidate_id": "C1C-2026Q2-ce41d178-20261015T130154",
+  "created_at": "2026-10-15T13:02:17Z",
+  "files_sha256": {
+    "c1_lsoa_append_only.csv": "66aeed57344df97664ce58b5114bcb05315504ace5e722e7cec13e826cec8ac6",
+    "c1_lsoa_latest_vintage.csv": "49e38cc4bb8583f5b075d4bde7a7d97209bb4d0810d578e2462d1184c6bd3961",
+    "integration/append_only/ev_actuals_dno.csv": "6832176e8210ce6378c06678bc573e7b85fd47d54f3a7f7696e59ad66b5c8f08",
+    "integration/append_only/ev_actuals_la.csv": "4e26a7e7acff23fa3d0c3a7daceff18432f645e7105f4bb6cc570e7b22b76b2f",
+    "integration/append_only/ev_actuals_laep.csv": "1309f71c0cb8d45faa450c96d16f1afbe5ffcf4657930c117661e7bb22b633e8",
+    "integration/restated/ev_actuals_dno.csv": "03147ed830414f5af9f542a4ff3bf47ccc5d98ab88af991684e64413515039d0",
+    "integration/restated/ev_actuals_la.csv": "e8421703d86b59caba342bccdb22bb582f9f32c69bd4ffdc6d3d7e4e4f2b825f",
+    "integration/restated/ev_actuals_laep.csv": "950cc3aabb2a06aaa980e9fc8b0d4868f27ccf05bcfd98c5fd3403b18fcbe91f",
+    "reports/geography_aggregates.csv": "192cdef1fffd5196ed4febdc380a49bb9d454fffb3baa8ba1f5c4362fad6a4e8",
+    "reports/national_pools_and_lpn_floor.csv": "6c6da9bc7ee7fd89d27a38f19f1325fbf72ee7c74de2f2ee3c439d98cbe62dc5",
+    "reports/qa_checks.csv": "1cd26e1ad4307c796e7978e11d348c30666d2f50abdf728f94a7cc543c841158",
+    "reports/restatement_geography.csv": "1a0d21252c99297a2ffa63f3c04332a457a4bb96e2d12cd29d1c421ac3d25396",
+    "reports/restatement_lsoa_changes.csv": "ca6c64d55fced7f33baee37dc38fbbbe74b125939a74ff3f2b9735d1af2432d7",
+    "reports/source_geography.json": "07e99ac5bfd3b7d813e4f0e964e27fde72f6349e9db476e3d34d8fc7b173cc18",
+    "reports/source_revisions.csv": "77602a424e6dd84ac052d07a39f2dc939fafb9a403f691fa7326392bb4b91c90",
+    "reports/summary.json": "7d7068780444f8f63361914b3a9edb07e0fcec48e205f3ecbb83cc7e085dd305"
+  },
+  "historical_periods": [
+    "2025-03",
+    "2025-06",
+    "2025-09",
+    "2025-12",
+    "2026-03"
+  ],
+  "input_sha256": {
+    "VEH0135": "ce41d17806cf3210a589fcc7bfd9297244e247e48d4a8767f5840879f41f2a6a",
+    "baseline_VEH0135": "ba54465c0ebfb7bbe298250515497e1512426bb9cd244d0fe5352d3921555379",
+    "geography_lookup": "4c68cb4f8e6bbf32844b119a6bad56275320b350593385eb38946f79ebbe71f2",
+    "lsoa_dno": "b6a6cf72e4ad5d82bd4e12a28c8ba96880a2c255ad3d6c5bda04a3785d70e591",
+    "published_c1_lsoa": "8c539a9a4076d02c2402d7f0d70caca24ef93858930286ccbc62361c625f669a"
+  },
+  "live_release": {
+    "manifest_sha256": "69b3cb6d1af4ecc9287b03d9344e4b386e26ed171be8771445ea2ee8afd0d8ec",
+    "release_id": "c1-20261014-ukpn-ev",
+    "status": "COMPLETE",
+    "target_sha256": {
+      "ev_actuals_dno.csv": "b558a6b02ac03d0698bce480d3d9b92ef77d2f375c8e68ed3d4f14c389f55f95",
+      "ev_actuals_la.csv": "b8c737eaedd3970b603175936b2b37c7f3d3ed66788194553e4e42304085e8e6",
+      "ev_actuals_laep.csv": "ec539024ee749d6035446caf65db551bfd07b5e835b0f14d3d37d4f04ab7c0cb"
+    }
+  },
+  "methodology": {
+    "code": {
+      "files_sha256": {
+        "data_manager/c1_refresh/__init__.py": "1e1de077849489c52952dd39fe3cb9bf09194ad1cdd0bfee1d865edbeb38ee59",
+        "data_manager/c1_refresh/cli.py": "0d4ae3ceb4163d92c296894f546cf95a233cad95d02c40417327fb2f1f27461e",
+        "data_manager/c1_refresh/config.py": "a96a6836578c80ef9cea87829e410744fd450097b6c19ce6e6e0c033e46ed733",
+        "data_manager/c1_refresh/engine.py": "7603aa8b8953db3bad478284027bc2a71d9e31947573701d5fb38d7c6a3d0b96",
+        "data_manager/c1_refresh/sources.py": "746f0c06d7b682841504dc28a8a28b19f67153d84828f52080bcd5bcc7176edb",
+        "data_manager/c1_refresh/store.py": "33d880c30ef8af8d4010611334a76d8b2fe1f14c65382025243f2e80259083e8",
+        "data_manager/c1_refresh/web.py": "5012fa1ad6e3111606248012e1d094024ba1e737f2d45b740eef26ba9bb564ff",
+        "experiments/ev_redistribution_c1/c1_method.py": "6b371c6e3b3a37becec5a13422003bad1fa0060c30780beee257b38ec0650c1b",
+        "experiments/ev_redistribution_c1/integration_writer.py": "c84b61e1163b2634edfbb7d138744fe904ac5647ceabe2bd9dc981854b55949f",
+        "experiments/ev_redistribution_c1/run_c1.py": "0eb913900d5343ba135e1b53283390a8a43bc6a7273c48d230627521ccced8bd"
+      },
+      "git_head": "ab1818ac6811233f4fdcbd4966c23c834b82022e",
+      "uncommitted_files": [
+        "data_manager/c1_refresh/__init__.py",
+        "data_manager/c1_refresh/cli.py",
+        "data_manager/c1_refresh/config.py",
+        "data_manager/c1_refresh/engine.py",
+        "data_manager/c1_refresh/sources.py",
+        "data_manager/c1_refresh/store.py",
+        "data_manager/c1_refresh/web.py"
+      ]
+    },
+    "lpn_min_share": 0.2,
+    "methodology_id": "C1_DYNAMIC_PRIVATE_EV"
+  },
+  "new_period": "2026-06",
+  "periods": [
+    "2025-03",
+    "2025-06",
+    "2025-09",
+    "2025-12",
+    "2026-03",
+    "2026-06"
+  ],
+  "publication_options": {
+    "A_APPEND_ONLY": {
+      "description": "five published quarters kept byte-for-byte; 2026-06 appended",
+      "expected_production_sha256": {
+        "ev_actuals_dno.csv": "6832176e8210ce6378c06678bc573e7b85fd47d54f3a7f7696e59ad66b5c8f08",
+        "ev_actuals_la.csv": "4e26a7e7acff23fa3d0c3a7daceff18432f645e7105f4bb6cc570e7b22b76b2f",
+        "ev_actuals_laep.csv": "1309f71c0cb8d45faa450c96d16f1afbe5ffcf4657930c117661e7bb22b633e8"
+      }
+    },
+    "B_RESTATED": {
+      "description": "all quarters recalculated from the latest DfT vintage; requires explicit restatement approval",
+      "differs_from_append_only": true,
+      "expected_production_sha256": {
+        "ev_actuals_dno.csv": "03147ed830414f5af9f542a4ff3bf47ccc5d98ab88af991684e64413515039d0",
+        "ev_actuals_la.csv": "e8421703d86b59caba342bccdb22bb582f9f32c69bd4ffdc6d3d7e4e4f2b825f",
+        "ev_actuals_laep.csv": "950cc3aabb2a06aaa980e9fc8b0d4868f27ccf05bcfd98c5fd3403b18fcbe91f"
+      }
+    },
+    "C_REJECT_OR_DEFER": {
+      "description": "dashboard unchanged"
+    }
+  },
+  "qa": {
+    "all_passed": true,
+    "passed": 255,
+    "total": 255
+  },
+  "resources": {
+    "peak_commit_mb": 782,
+    "peak_working_set_mb": 612,
+    "working_set_mb": 418
+  },
+  "restatements_detected": true,
+  "schema": "c1-candidate/1",
+  "seal_sha256": "605d0c595e225324237e6ab979daa72118592fb503429a628322daf3b9a631a5",
+  "source_set_id": "SS-VEH0135-2026Q2-ce41d17806cf",
+  "source_set_seal": "550040d50173dfef4624d68b9a4988a76a254795e01be75c33d5d4a22c2a194b",
+  "status_note": "Sealed candidate. Not approved, not published. Decisions are recorded separately in decisions.jsonl.",
+  "timings_s": {
+    "method_new": 4.8,
+    "restatement": 13.3,
+    "total": 22.9
+  }
+}
