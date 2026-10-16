@@ -27,8 +27,10 @@ from data_manager.smmt import SMmtManager
 from data_manager.nowcast import NowcastEngine
 from data_manager.dft_update import DfTUpdateManager
 from data_manager.promotion import AtomicPromotion, ManualRollback, CandidateValidator
+from data_manager.ingestion import web as ingestion_web
 
 app = Flask(__name__)
+ingestion_web.init_app(app)   # /dft-ingest, /dft-sources, /api/ingest/* (staging only; never writes production)
 db = Database()
 inspector = DftInspector(PROJECT_ROOT)
 smmt_manager = SMmtManager()

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}DfT Source Versions — LCT Data Manager{% endblock %}
+{% block extra_css %}
+<style>
+    table.grid { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+    table.grid th, table.grid td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; vertical-align: top; }
+    table.grid th { background: #fafafa; color: #555; }
+    .num { text-align: right !important; }
+    .muted { color: #777; font-size: 0.85em; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: 700; background: #eee; }
+    .b-STAGED { background: #d1ecf1; color: #0c5460; } .b-FAILED_STAGING, .b-PENDING_FILES { background: #f8d7da; color: #721c24; }
+    .b-PRODUCTION { background: #d4edda; color: #155724; }
+    .alert { padding: 10px 12px; border-radius: 4px; margin: 10px 0; font-size: 0.9em; }
+    .alert.info { background: #e8ebfb; border-left: 3px solid #667eea; } .alert.warn { background: #fff5e6; border-left: 3px solid #ff9900; }
+</style>
+{% endblock %}
+{% block content %}
+{% if error %}<div class="alert warn">{{ error }}</div>{% endif %}
+<div class="card">
+    <h2>Approved sources vs staged candidates</h2>
+    <div class="alert info">The <strong>approved</strong> source for each dataset is the production file in <code>ev/</code>. Staged versions are
+        immutable candidates awaiting a separate, authorised C1 refresh and release; staging never publishes anything.
+        <a href="/dft-ingest">Upload a new file →</a></div>
+    <table class="grid">
+        <tr><th>Dataset</th><th>Approved (production)</th><th>Latest staged candidate</th></tr>
+        {% for p in production %}
+        {% set s = latest_staged.get(p.dataset) %}
+        <tr><td><strong>{{ p.dataset }}</strong></td>
+            <td><span class="badge b-PRODUCTION">PRODUCTION</span> <code>{{ p.file }}</code> {{ p.latest_quarter or '' }}
+                <span class="muted">sha {{ p.sha256[:16] if p.present else 'missing' }}</span></td>
+            <td>{% if s %}<span class="badge b-STAGED">STAGED</span> <a href="/dft-sources/{{ s.id }}">{{ s.label }}</a> {{ s.period_label }}
+                <span class="muted">sha {{ s.sha256[:16] }}</span>{% else %}<span class="muted">none</span>{% endif %}</td></tr>
+        {% endfor %}
+    </table>
+    {% if common %}
+    <p class="muted" style="margin-top:8px;">Latest staged quarter common to all staged datasets: <strong>{{ common.period }}</strong>
+        {% if not common.consistent %}— staged datasets cover different quarters; a C1 source set needs a consistent quarter.{% endif %}</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Version history</h2>
+    <table class="grid">
+        <tr><th>Version</th><th>Dataset</th><th>Period</th><th>Status</th><th>Original file</th><th>Format</th><th class="num">Rows</th>
+            <th class="num">Size</th><th>SHA-256</th><th>Supersedes</th><th>Restates</th><th>Staged</th></tr>
+        {% for v in versions %}
+        <tr><td><a href="/dft-sources/{{ v.id }}">{{ v.label }}</a></td><td>{{ v.dataset }}</td><td>{{ v.period_label }}</td>
+            <td><span class="badge b-{{ v.status }}">{{ v.status }}</span></td><td>{{ v.original_filename }}</td><td>{{ v.format|upper }}{% if v.sheet %} / {{ v.sheet }}{% endif %}</td>
+            <td class="num">{{ '{:,}'.format(v.rows or 0) }}</td><td class="num">{{ '{:,.1f} MB'.format(v.size_bytes / 1048576) }}</td>
+            <td><code>{{ v.sha256[:16] }}</code></td><td>{{ v.supersedes_label or '' }}</td>
+            <td>{{ v.restates_label or '' }}{% if v.restatement_reason %}<div class="muted">{{ v.restatement_reason }}</div>{% endif %}</td>
+            <td class="muted">{{ v.staged_at[:19].replace('T', ' ') if v.staged_at else '' }}</td></tr>
+        {% else %}
+        <tr><td colspan="12" class="muted">No staged versions yet.</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="card">
+    <h2>Audit log (latest 40 events)</h2>
+    <table class="grid">
+        <tr><th>Time (UTC)</th><th>Event</th><th>Upload</th><th>Version</th><th>Detail</th></tr>
+        {% for e in events %}
+        <tr><td class="muted">{{ e.at[:19].replace('T', ' ') }}</td><td>{{ e.event }}</td><td class="muted">{{ e.job_id or '' }}</td>
+            <td>{{ e.version_id or '' }}</td><td class="muted">{{ e.detail or '' }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

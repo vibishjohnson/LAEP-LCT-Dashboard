@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}DfT Source Ingestion — LCT Data Manager{% endblock %}
+{% block extra_css %}
+<style>
+    .steps { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
+    .step { padding: 6px 12px; border-radius: 4px; background: #eef0fb; color: #5568d3; font-weight: 600; font-size: 0.85em; }
+    .upload-area { border: 2px dashed #999; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .upload-area:hover, .upload-area.dragover { border-color: #667eea; background: #f4f5fd; }
+    .upload-area input { display: none; }
+    .muted { color: #777; font-size: 0.85em; }
+    .bar { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+    .bar .fill { height: 100%; background: #667eea; width: 0%; transition: width 0.3s; }
+    table.grid { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+    table.grid th, table.grid td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; vertical-align: top; }
+    table.grid th { background: #fafafa; color: #555; }
+    .num { text-align: right !important; font-variant-numeric: tabular-nums; }
+    .scroll { overflow-x: auto; max-height: 420px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: 700; }
+    .b-UPLOADING, .b-QUEUED, .b-PARSING, .b-VALIDATING { background: #fff3cd; color: #856404; }
+    .b-READY { background: #d4edda; color: #155724; }
+    .b-FAILED, .b-REJECTED { background: #f8d7da; color: #721c24; }
+    .b-STAGED { background: #d1ecf1; color: #0c5460; }
+    .b-PASS { background: #d4edda; color: #155724; } .b-FAIL { background: #f8d7da; color: #721c24; } .b-WARN { background: #fff3cd; color: #856404; }
+    .kv { display: grid; grid-template-columns: 220px 1fr; gap: 4px 12px; font-size: 0.9em; }
+    .kv div:nth-child(odd) { color: #666; font-weight: 600; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    button { padding: 9px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+    button.primary { background: #667eea; color: white; } button.primary:disabled { background: #bbb; cursor: not-allowed; }
+    button.danger { background: #dc3545; color: white; } button.plain { background: #eee; color: #333; }
+    .alert { padding: 10px 12px; border-radius: 4px; margin: 10px 0; font-size: 0.9em; }
+    .alert.info { background: #e8ebfb; border-left: 3px solid #667eea; } .alert.warn { background: #fff5e6; border-left: 3px solid #ff9900; }
+    .alert.err { background: #ffe6e6; border-left: 3px solid #cc0000; } .alert.ok { background: #e6ffe6; border-left: 3px solid #009900; }
+    code { font-size: 0.85em; }
+    input[type=text], select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>DfT source ingestion</h2>
+    <div class="steps"><span class="step">1 Upload</span><span class="step">2 Identify</span><span class="step">3 Validate</span><span class="step">4 Preview</span><span class="step">5 Save to staging</span></div>
+    <div class="alert info">Accepted files are stored as immutable, versioned <strong>candidate</strong> sources. Saving to staging does
+        <strong>not</strong> replace production inputs in <code>ev/</code>, change EV actuals or forecasts, or approve publication.</div>
+    <div class="upload-area" id="drop">
+        <p>📁 Drag a DfT file here or click to choose</p>
+        <p class="muted">.csv, .xlsx or .ods — up to {{ max_upload_mb }} MB. The dataset is identified from the file's content, not its name.</p>
+        <input type="file" id="file" accept=".csv,.xlsx,.ods">
+    </div>
+    <div id="uploadStatus" style="display:none; margin-top:12px;">
+        <div><strong id="upName"></strong> <span class="muted" id="upSize"></span></div>
+        <div class="bar"><div class="fill" id="upBar"></div></div>
+        <div class="muted" id="upText"></div>
+    </div>
+</div>
+
+<div class="card" id="review" style="display:none;">
+    <h2>Review: <span id="rvTitle"></span></h2>
+    <div class="bar"><div class="fill" id="rvBar"></div></div>
+    <div class="muted" id="rvState"></div>
+    <div id="rvBody"></div>
+</div>
+
+<div class="card">
+    <h2>Current production sources (approved, read-only)</h2>
+    <table class="grid">
+        <tr><th>Dataset</th><th>File</th><th>Latest quarter</th><th class="num">Size</th><th>SHA-256</th><th>Modified</th><th>Role</th></tr>
+        {% for p in production %}
+        <tr><td><strong>{{ p.dataset }}</strong></td><td><code>{{ p.file }}</code></td>
+            <td>{{ p.latest_quarter or ('missing' if not p.present else '?') }}</td>
+            <td class="num">{{ '{:,.1f} MB'.format(p.size_bytes / 1048576) if p.present else '' }}</td>
+            <td><code>{{ p.sha256[:16] if p.present else '' }}</code></td><td>{{ p.modified or '' }}</td><td class="muted">{{ p.role }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="card">
+    <h2>Recent uploads</h2>
+    <table class="grid" id="jobs">
+        <tr><th>Uploaded</th><th>File</th><th>Dataset</th><th>Period</th><th class="num">Size</th><th>State</th><th></th></tr>
+    </table>
+    <p class="muted" style="margin-top:8px;"><a href="/dft-sources">Source version history →</a></p>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const MAX = {{ max_upload_mb }} * 1048576;
+const DATASETS = {{ datasets|tojson }};
+const ACTIVE = ['UPLOADING', 'QUEUED', 'PARSING', 'VALIDATING'];
+let current = null, pollTimer = null;
+
+function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function mb(b) { return (b / 1048576).toLocaleString(undefined, {maximumFractionDigits: 1}) + ' MB'; }
+function n(v) { return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, {maximumFractionDigits: 3}); }
+function pct(v) { return v === null || v === undefined ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%'; }
+function badge(s) { return `<span class="badge b-${esc(s)}">${esc(s)}</span>`; }
+async function post(url, body) {
+    const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+    return [r.status, await r.json()];
+}
+
+const drop = document.getElementById('drop'), input = document.getElementById('file');
+drop.addEventListener('click', () => input.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('dragover'); if (e.dataTransfer.files.length) upload(e.dataTransfer.files[0]); });
+input.addEventListener('change', () => { if (input.files.length) upload(input.files[0]); input.value = ''; });
+
+async function upload(file) {
+    const box = document.getElementById('uploadStatus'), bar = document.getElementById('upBar'), txt = document.getElementById('upText');
+    box.style.display = 'block';
+    document.getElementById('upName').textContent = file.name;
+    document.getElementById('upSize').textContent = mb(file.size);
+    bar.style.width = '0%';
+    if (!/\.(csv|xlsx|ods)$/i.test(file.name)) { txt.textContent = 'Unsupported file type: use .csv, .xlsx or .ods'; return; }
+    if (file.size > MAX) { txt.textContent = `File is ${mb(file.size)}; the limit is ${mb(MAX)}.`; return; }
+    const [pcs, pc] = await post('/api/ingest/precheck', {filename: file.name, size: file.size});
+    if (!pc.ok) { txt.textContent = `Upload refused (${pcs}): ${pc.error}`; return; }
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', '/api/ingest/upload?filename=' + encodeURIComponent(file.name));
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.upload.onprogress = e => { if (e.lengthComputable) { bar.style.width = (100 * e.loaded / e.total).toFixed(1) + '%';
+        txt.textContent = `Uploading… ${mb(e.loaded)} of ${mb(e.total)}`; } };
+    xhr.onerror = () => { txt.textContent = 'Upload failed: the connection was interrupted. Nothing was stored; please try again.'; refreshJobs(); };
+    xhr.onload = () => {
+        let res = {}; try { res = JSON.parse(xhr.responseText); } catch (e) {}
+        if (xhr.status === 202) { bar.style.width = '100%'; txt.textContent = 'Uploaded. Processing in the background…'; openJob(res.job_id); }
+        else { txt.textContent = `Upload refused (${xhr.status}): ${res.error || xhr.statusText}`; if (res.job_id) openJob(res.job_id); }
+        refreshJobs();
+    };
+    xhr.send(file);
+}
+
+async function refreshJobs() {
+    const r = await fetch('/api/ingest/jobs'); const d = await r.json();
+    const t = document.getElementById('jobs');
+    t.innerHTML = '<tr><th>Uploaded</th><th>File</th><th>Dataset</th><th>Period</th><th class="num">Size</th><th>State</th><th></th></tr>' +
+        d.jobs.map(j => `<tr><td>${esc(j.created_at.slice(0, 19).replace('T', ' '))}</td><td>${esc(j.original_filename)}</td><td>${esc(j.dataset || '')}</td>
+        <td>${esc(j.period_label || '')}</td><td class="num">${mb(j.declared_bytes || 0)}</td><td>${badge(j.state)} <span class="muted">${esc(j.stage || '')}</span></td>
+        <td><a href="#" onclick="openJob('${esc(j.id)}');return false;">review</a></td></tr>`).join('');
+}
+
+function openJob(id) { current = id; document.getElementById('review').style.display = 'block'; poll(); }
+
+async function poll() {
+    clearTimeout(pollTimer);
+    if (!current) return;
+    const r = await fetch('/api/ingest/jobs/' + current); const d = await r.json();
+    if (!d.ok) return;
+    render(d.job);
+    if (ACTIVE.includes(d.job.state)) pollTimer = setTimeout(poll, 1000); else refreshJobs();
+}
+
+function render(j) {
+    const res = j.result || {};
+    document.getElementById('rvTitle').textContent = `${j.original_filename}`;
+    const prog = j.state === 'UPLOADING' ? (j.declared_bytes ? j.received_bytes / j.declared_bytes : 0) : (j.progress || 0);
+    document.getElementById('rvBar').style.width = (ACTIVE.includes(j.state) ? 100 * prog : 100).toFixed(1) + '%';
+    const label = {UPLOADING: 'Uploading', QUEUED: 'Waiting for the worker', PARSING: 'Identifying and parsing', VALIDATING: 'Validating',
+                   READY: 'Validation passed — review and save', FAILED: 'Failed', REJECTED: 'Rejected', STAGED: 'Saved to staging'}[j.state] || j.state;
+    document.getElementById('rvState').innerHTML = `${badge(j.state)} ${esc(label)} <span class="muted">stage: ${esc(j.stage || '')}</span>`;
+    let h = '';
+    if (j.error) h += `<div class="alert err"><strong>${esc(j.stage)}:</strong> ${esc(j.error)}</div>`;
+    const p = res.profile || {}, cmp = res.comparison || {}, prod = res.production || {};
+    if (res.dataset || res.format) {
+        h += `<div class="kv" style="margin-top:12px;">
+            <div>Recognised dataset</div><div><strong>${esc(res.dataset || '—')}</strong> ${esc(res.dataset_title || '')}</div>
+            <div>Identification</div><div>${esc((res.identification || {}).method || '')} ${((res.identification || {}).candidates || []).slice(0, 1).map(c => '— ' + esc(c.reasons.join('; '))).join('')}</div>
+            <div>Role in the pipeline</div><div class="muted">${esc(res.dataset_role || '')}</div>
+            <div>Reporting period (latest quarter)</div><div><strong>${esc(p.latest_quarter || '—')}</strong> ${p.period_end ? '(quarter ending ' + esc(p.period_end) + ')' : ''}</div>
+            <div>Source file</div><div>${esc(res.original_filename)} — ${esc((res.format || '').toUpperCase())}, ${mb(res.size_bytes || 0)}</div>
+            <div>Worksheet</div><div>${res.sheet ? esc(res.sheet) : '— (CSV)'} ${res.sheets && res.sheets[0] ? '<span class="muted">of ' + esc(res.sheets.join(', ')) + '</span>' : ''}</div>
+            <div>Rows imported</div><div>${n(p.rows)} data rows${p.header_row ? ', header on row ' + p.header_row : ''}${p.quarters ? ', ' + p.quarters.length + ' quarters (' + esc(p.quarters[p.quarters.length - 1]) + '–' + esc(p.latest_quarter) + ')' : ''}</div>
+            <div>UKPN scope</div><div>${p.scope ? n(p.scope.ukpn_rows) + ' rows in EPN/LPN/SPN scope, ' + n(p.scope.non_ukpn_rows) + ' outside — ' + esc(p.scope.field) : '—'}</div>
+            <div>SHA-256</div><div><code>${esc(res.sha256 || j.sha256 || '')}</code></div>
+            <div>Current production version</div><div>${prod.path ? '<code>' + esc(prod.path) + '</code> ' + esc(prod.latest_quarter || '') + ', ' + n(prod.rows) + ' rows, sha ' + esc((prod.sha256 || '').slice(0, 16)) : 'no production file'}</div>
+            <div>Processing</div><div class="muted">${res.timings_s ? esc(res.timings_s.total) + ' s' : ''} ${res.memory_mb && res.memory_mb.peak_commit ? '— worker peak ' + esc(res.memory_mb.peak_commit) + ' MB' : ''}</div>
+        </div>`;
+    }
+    if (res.checks) {
+        h += '<h3 style="margin-top:16px;">Validation</h3><table class="grid"><tr><th>Check</th><th>Status</th><th>Detail</th></tr>' +
+            res.checks.map(c => `<tr><td>${esc(c.check)}</td><td>${badge(c.status)}</td><td>${esc(c.detail)}</td></tr>`).join('') + '</table>';
+    }
+    if (res.flags && res.flags.length) h += '<div class="alert warn"><strong>Review notes</strong><ul style="margin-left:18px;">' + res.flags.map(f => `<li>${esc(f)}</li>`).join('') + '</ul></div>';
+    if (cmp.available) {
+        h += `<h3 style="margin-top:16px;">Production ${esc(cmp.production_latest)} vs candidate ${esc(cmp.candidate_latest)} <span class="muted">(${esc(cmp.quarter_relation)})</span></h3>
+            <p class="muted">Rows: production ${n(cmp.rows.production)}, candidate ${n(cmp.rows.candidate)} (${pct(cmp.rows.change_pct)}). Restatement = candidate's value for ${esc(cmp.production_latest)} vs production's.</p>
+            <div class="scroll"><table class="grid"><tr><th>Series</th><th class="num">Production ${esc(cmp.production_latest)}</th><th class="num">Candidate ${esc(cmp.production_latest)}</th><th class="num">Restatement</th><th class="num">Candidate ${esc(cmp.candidate_latest)}</th><th class="num">Change</th></tr>` +
+            cmp.series.map(s => `<tr><td>${esc(s.series)}</td><td class="num">${n(s.production_at_production_latest)}</td><td class="num">${n(s.candidate_at_production_latest)}</td>
+                <td class="num">${pct(s.restatement_pct)}</td><td class="num">${n(s.candidate_latest)}</td><td class="num">${pct(s.growth_pct)}</td></tr>`).join('') + '</table></div>';
+    }
+    if (res.preview && res.preview.header) {
+        h += `<h3 style="margin-top:16px;">Preview (first ${res.preview.rows.length} data rows, exactly as stored)</h3><div class="scroll"><table class="grid"><tr>` +
+            res.preview.header.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>' +
+            res.preview.rows.map(r => '<tr>' + r.map(c => `<td>${esc(c)}</td>`).join('') + '</tr>').join('') + '</table></div>';
+    }
+    if (res.head) h += '<h3 style="margin-top:16px;">First rows of each worksheet</h3><pre class="muted" style="white-space:pre-wrap;">' + esc(JSON.stringify(res.head, null, 1)) + '</pre>';
+    // actions
+    const canStage = j.state === 'READY' && res.status === 'VALID';
+    const conflict = (res.flags || []).some(f => f.startsWith('identical'));
+    const sameQuarter = cmp.available && cmp.quarter_relation === 'SAME';
+    if (j.state === 'READY' || j.state === 'FAILED') {
+        h += '<div class="actions">';
+        if (canStage) h += `<button class="primary" onclick="stage()" ${conflict ? 'disabled' : ''}>Save ${esc(res.dataset)} ${esc(p.latest_quarter)} to staging</button>
+            <span class="muted">${sameQuarter ? 'Same quarter as production: a restatement reason is required.' : ''}</span>
+            <input type="text" id="restate" placeholder="Restatement reason (only for a DfT revision of an existing quarter)" size="48">`;
+        if (j.upload_present) h += `<span class="muted">Wrong dataset?</span> <select id="ovDs">${DATASETS.map(d => `<option ${d === res.dataset ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select>
+            ${res.sheets && res.sheets[0] ? `<select id="ovSheet"><option value="">auto</option>${res.sheets.map(s => `<option>${esc(s)}</option>`).join('')}</select>` : ''}
+            <button class="plain" onclick="revalidate()">Re-validate as selected</button>`;
+        if (j.state === 'FAILED' && j.upload_present && (!res.status || res.status === 'ERROR')) h += `<button class="plain" onclick="retry()">Retry</button>`;
+        h += `<button class="danger" onclick="reject()">Reject</button></div>`;
+    }
+    if (j.state === 'STAGED') h += `<div class="alert ok">Saved as an immutable candidate source. <a href="/dft-sources/${esc(j.version_id)}">View version →</a> Production is unchanged.</div>`;
+    document.getElementById('rvBody').innerHTML = h;
+    window._res = res;
+}
+
+async function stage() {
+    const res = window._res;
+    if (!confirm(`Save ${res.dataset} ${res.profile.latest_quarter} as a staged candidate source?\n\nThis stores an immutable copy. It does not change production.`)) return;
+    const [s, d] = await post(`/api/ingest/jobs/${current}/stage`, {dataset: res.dataset, period: res.profile.latest_quarter,
+        restatement_reason: (document.getElementById('restate') || {}).value || ''});
+    if (!d.ok) alert('Not saved: ' + d.error);
+    poll();
+}
+async function reject() {
+    const reason = prompt('Reason for rejecting this upload (e.g. wrong dataset identified):', '');
+    if (reason === null) return;
+    const [s, d] = await post(`/api/ingest/jobs/${current}/reject`, {reason});
+    if (!d.ok) alert(d.error);
+    poll();
+}
+async function revalidate() {
+    const sheet = document.getElementById('ovSheet');
+    const [s, d] = await post(`/api/ingest/jobs/${current}/revalidate`, {dataset: document.getElementById('ovDs').value, sheet: sheet ? sheet.value : ''});
+    if (!d.ok) alert(d.error);
+    poll();
+}
+async function retry() { const [s, d] = await post(`/api/ingest/jobs/${current}/retry`, {}); if (!d.ok) alert(d.error); poll(); }
+
+refreshJobs();
+function openFromHash() { const m = location.hash.match(/^#job=(.+)$/); if (m) openJob(m[1]); }
+window.addEventListener('hashchange', openFromHash);
+openFromHash();
+</script>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ v.label }} — LCT Data Manager{% endblock %}
+{% block extra_css %}
+<style>
+    table.grid { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+    table.grid th, table.grid td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; vertical-align: top; }
+    table.grid th { background: #fafafa; color: #555; }
+    .num { text-align: right !important; }
+    .muted { color: #777; font-size: 0.85em; }
+    .alert { padding: 10px 12px; border-radius: 4px; margin: 10px 0; font-size: 0.9em; }
+    .alert.ok { background: #e6ffe6; border-left: 3px solid #009900; } .alert.err { background: #ffe6e6; border-left: 3px solid #cc0000; }
+    pre { white-space: pre-wrap; font-size: 0.8em; background: #fafafa; padding: 10px; border-radius: 4px; max-height: 420px; overflow: auto; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>{{ v.label }} <span class="muted">({{ v.status }} candidate source — not approved for publication)</span></h2>
+    {% if verified %}<div class="alert ok">Stored files match the manifest hashes and the registry record.</div>
+    {% else %}<div class="alert err">Integrity check failed: stored files do not match the manifest or the registry.</div>{% endif %}
+    <table class="grid">
+        <tr><th>Dataset</th><td>{{ v.dataset }}</td><th>Reporting period</th><td>{{ v.period_label }} (ends {{ v.period_end }})</td></tr>
+        <tr><th>Original file</th><td>{{ v.original_filename }} ({{ v.format|upper }}{% if v.sheet %}, sheet {{ v.sheet }}{% endif %})</td>
+            <th>Size / rows</th><td>{{ '{:,}'.format(v.size_bytes) }} bytes / {{ '{:,}'.format(v.rows or 0) }} rows</td></tr>
+        <tr><th>SHA-256 (original)</th><td colspan="3"><code>{{ v.sha256 }}</code></td></tr>
+        <tr><th>SHA-256 (canonical table)</th><td colspan="3"><code>{{ v.canonical_sha256 }}</code></td></tr>
+        <tr><th>Uploaded / staged</th><td>{{ v.uploaded_at }} / {{ v.staged_at }}</td><th>Stored at</th><td><code>source_registry/{{ v.path }}</code></td></tr>
+        <tr><th>Supersedes</th><td>{{ v.supersedes_version_id or '—' }}</td><th>Restates</th><td>{{ v.restates_version_id or '—' }} {{ v.restatement_reason or '' }}</td></tr>
+        <tr><th>Production at staging</th><td colspan="3">{{ v.production_latest or '—' }} <code>{{ (v.production_sha256 or '')[:16] }}</code></td></tr>
+    </table>
+</div>
+{% if profile and profile.comparison and profile.comparison.available %}
+<div class="card">
+    <h2>Comparison with production at staging time</h2>
+    <table class="grid"><tr><th>Series</th><th class="num">Production {{ profile.comparison.production_latest }}</th>
+        <th class="num">Candidate {{ profile.comparison.production_latest }}</th><th class="num">Restatement %</th>
+        <th class="num">Candidate {{ profile.comparison.candidate_latest }}</th><th class="num">Change %</th></tr>
+        {% for s in profile.comparison.series %}
+        <tr><td>{{ s.series }}</td><td class="num">{{ s.production_at_production_latest }}</td><td class="num">{{ s.candidate_at_production_latest }}</td>
+            <td class="num">{{ s.restatement_pct }}</td><td class="num">{{ s.candidate_latest }}</td><td class="num">{{ s.growth_pct }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+<div class="card">
+    <h2>Provenance manifest</h2>
+    <pre>{{ manifest | tojson(indent=2) }}</pre>
+</div>
+<div class="card">
+    <h2>Events</h2>
+    <table class="grid">{% for e in events %}<tr><td class="muted">{{ e.at }}</td><td>{{ e.event }}</td><td class="muted">{{ e.detail or '' }}</td></tr>{% endfor %}</table>
+    <p class="muted" style="margin-top:8px;"><a href="/dft-sources">← All versions</a></p>
+</div>
+{% endblock %}
