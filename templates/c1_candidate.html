@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}{{ m.candidate_id }} — C1 candidate{% endblock %}
+{% block extra_css %}
+<style>
+    table.grid { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+    table.grid th, table.grid td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; vertical-align: top; }
+    table.grid th { background: #fafafa; color: #555; }
+    .num { text-align: right !important; font-variant-numeric: tabular-nums; }
+    .muted { color: #777; font-size: 0.85em; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: 700; background: #eee; }
+    .b-ok { background: #d4edda; color: #155724; } .b-bad { background: #f8d7da; color: #721c24; } .b-wait { background: #fff3cd; color: #856404; }
+    .alert { padding: 10px 12px; border-radius: 4px; margin: 10px 0; font-size: 0.9em; }
+    .alert.info { background: #e8ebfb; border-left: 3px solid #667eea; } .alert.warn { background: #fff5e6; border-left: 3px solid #ff9900; }
+    .alert.err { background: #ffe6e6; border-left: 3px solid #cc0000; } .alert.ok { background: #e6ffe6; border-left: 3px solid #009900; }
+    .kv { display: grid; grid-template-columns: 240px 1fr; gap: 4px 12px; font-size: 0.9em; }
+    .kv div:nth-child(odd) { color: #666; font-weight: 600; }
+    .new { background: #f0f7ff; } .pos { color: #155724; } .neg { color: #721c24; }
+    .scroll { overflow-x: auto; }
+    input[type=text], select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 9px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; background: #667eea; color: white; }
+    fieldset { border: 1px solid #ddd; padding: 10px; border-radius: 4px; margin: 8px 0; }
+</style>
+{% endblock %}
+{% block content %}
+{% set new = m.new_period %}
+<div class="card">
+    <h2>{{ m.candidate_id }} <span class="badge b-wait" id="stateBadge">{{ state.state }}</span></h2>
+    {% if sealed_ok %}<div class="alert ok">Sealed package verified: manifest seal valid and all {{ m.files_sha256|length }} files match their hashes.</div>
+    {% else %}<div class="alert err">Package integrity check FAILED: {{ seal_detail }}</div>{% endif %}
+    <div class="alert info">Candidate only. The live dashboard still shows release <strong>{{ m.live_release.release_id }}</strong> (five quarters to 2026-03).
+        A decision recorded below is not authorisation to run a production release.</div>
+    <div class="kv">
+        <div>Source version</div><div>{{ sset.source.registry_version_label }} — {{ sset.source.original_filename }}, {{ '{:,}'.format(sset.source.size_bytes) }} bytes, sha256 <code>{{ sset.source.sha256[:16] }}</code></div>
+        <div>Reporting quarter</div><div><strong>{{ sset.reporting_quarter }}</strong> (new period {{ new }})</div>
+        <div>Source set</div><div>{{ m.source_set_id }} <span class="muted">seal {{ m.source_set_seal[:12] }}</span></div>
+        <div>Methodology</div><div>{{ m.methodology.methodology_id }}, LPN minimum share {{ m.methodology.lpn_min_share }}; code at {{ (m.methodology.code.git_head or '')[:7] }}</div>
+        <div>Coverage</div><div>{{ m.periods|length }} quarters: {{ m.periods|join(', ') }} — 11,023 UKPN LSOAs, 121 LAs, 14 LAEPs</div>
+        <div>Baseline reproduction</div><div>{{ 'passed (live release reproduced byte for byte)' if m.baseline_reproduction_passed else 'NOT passed' }}</div>
+        <div>QA</div><div><span class="badge {{ 'b-ok' if m.qa.all_passed else 'b-bad' }}">{{ m.qa.passed }}/{{ m.qa.total }} checks passed</span></div>
+        <div>Generation</div><div>{{ m.timings_s.total }} s; peak memory {{ m.resources.peak_commit_mb }} MB</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>New quarter: {{ new }}</h2>
+    <table class="grid"><tr><th></th><th class="num">UKPN</th><th class="num">EPN</th><th class="num">LPN</th><th class="num">SPN</th><th class="num">BEV</th><th class="num">PHEV</th></tr>
+        {% set pub_last = m.historical_periods[-1] %}
+        <tr><td>Live published {{ pub_last }}</td>{% for k in ['UKPN','EPN','LPN','SPN','BEV','PHEV'] %}<td class="num">{{ '{:,}'.format(live_last[k]) }}</td>{% endfor %}</tr>
+        <tr class="new"><td><strong>Candidate {{ new }}</strong></td>{% for k in ['UKPN','EPN','LPN','SPN','BEV','PHEV'] %}<td class="num"><strong>{{ '{:,}'.format(s.new_quarter_values[k]) }}</strong></td>{% endfor %}</tr>
+    </table>
+    {% set lp = s.lpn_floor | selectattr('period','equalto',new) | list | last %}
+    <p class="muted" style="margin-top:8px;">LPN floor (0.20) in {{ new }}: LPN share after redistribution {{ lp.lpn_post_share_pct }}%, uplift {{ lp.lpn_uplift }} —
+        <strong>{{ 'ACTIVE' if lp.lpn_floor_active else 'inactive' }}</strong>{% if not lp.lpn_floor_active %} ({{ '%.2f'|format(lp.lpn_post_share_pct - 20) }} percentage points above the floor){% endif %}.</p>
+</div>
+
+<div class="card">
+    <h2>Historical revisions (earlier quarters, DfT {{ sset.reporting_quarter }} vintage vs published)</h2>
+    {% if m.restatements_detected %}<div class="alert warn">DfT revised earlier quarters. Under option A these published values stay unchanged; option B would replace them.
+        Affected: {{ s.affected_geographies.DNO }} DNOs, {{ s.affected_geographies.LA }} LAs, {{ s.affected_geographies.LAEP }} LAEPs, {{ '{:,}'.format(s.affected_geographies.LSOA) }} LSOAs.</div>{% endif %}
+    <h3>UKPN</h3>
+    <table class="grid"><tr><th>Period</th><th>Fuel</th><th class="num">Published</th><th class="num">Recalculated</th><th class="num">Difference</th><th class="num">%</th></tr>
+    {% for r in s.restatement_ukpn %}<tr><td>{{ r.period }}</td><td>{{ r.EV_Type }}</td><td class="num">{{ '{:,}'.format(r.published) }}</td><td class="num">{{ '{:,}'.format(r.recalculated) }}</td>
+        <td class="num {{ 'pos' if r.diff > 0 else 'neg' if r.diff < 0 }}">{{ '{:+,}'.format(r.diff) }}</td><td class="num">{{ '%+.3f'|format(r.pct) }}</td></tr>{% endfor %}
+    </table>
+    <h3 style="margin-top:12px;">DNO (BEV + PHEV)</h3>
+    <table class="grid"><tr><th>Period</th><th>DNO</th><th class="num">Published</th><th class="num">Recalculated</th><th class="num">Difference</th><th class="num">%</th></tr>
+    {% for r in s.restatement_dno %}<tr><td>{{ r.period }}</td><td>{{ r.geography }}</td><td class="num">{{ '{:,}'.format(r.published) }}</td><td class="num">{{ '{:,}'.format(r.recalculated) }}</td>
+        <td class="num">{{ '{:+,}'.format(r.diff) }}</td><td class="num">{{ '%+.3f'|format(r.pct) }}</td></tr>{% endfor %}
+    </table>
+    <h3 style="margin-top:12px;">Largest Local Authority revisions</h3>
+    <table class="grid"><tr><th>LA</th><th>Period</th><th class="num">Published</th><th class="num">Recalculated</th><th class="num">Difference</th><th class="num">%</th></tr>
+    {% for r in s.largest_la_abs %}<tr><td>{{ r.geography_name }}</td><td>{{ r.period }}</td><td class="num">{{ '{:,}'.format(r.published) }}</td><td class="num">{{ '{:,}'.format(r.recalculated) }}</td>
+        <td class="num">{{ '{:+,}'.format(r.diff) }}</td><td class="num">{{ '%+.3f'|format(r.pct) }}</td></tr>{% endfor %}
+    </table>
+    <h3 style="margin-top:12px;">Largest LAEP revisions</h3>
+    <table class="grid"><tr><th>LAEP</th><th>Period</th><th class="num">Published</th><th class="num">Recalculated</th><th class="num">Difference</th><th class="num">%</th></tr>
+    {% for r in s.largest_laep_abs %}<tr><td>{{ r.geography }}</td><td>{{ r.period }}</td><td class="num">{{ '{:,}'.format(r.published) }}</td><td class="num">{{ '{:,}'.format(r.recalculated) }}</td>
+        <td class="num">{{ '{:+,}'.format(r.diff) }}</td><td class="num">{{ '%+.3f'|format(r.pct) }}</td></tr>{% endfor %}
+    </table>
+    <h3 style="margin-top:12px;">Source revisions (DfT rows, Total keepership, national)</h3>
+    <table class="grid"><tr><th>Quarter</th><th>Fuel</th><th class="num">Old vintage</th><th class="num">New vintage</th><th class="num">Difference</th><th class="num">Rows changed</th><th class="num">of which suppression changes</th></tr>
+    {% for r in s.source_revisions_total %}<tr><td>{{ r.quarter }}</td><td>{{ r.fuel }}</td><td class="num">{{ '{:,}'.format(r.national_old) }}</td><td class="num">{{ '{:,}'.format(r.national_new) }}</td>
+        <td class="num">{{ '{:+,}'.format(r.diff) }}</td><td class="num">{{ '{:,}'.format(r.rows_changed) }}</td><td class="num">{{ '{:,}'.format(r.rows_changed_suppression) }}</td></tr>{% endfor %}
+    </table>
+    <p class="muted" style="margin-top:8px;">Canonical UKPN geography: {{ s.canonical_geography.canonical_ukpn_lsoas }} LSOAs; with source rows in the new vintage
+        {{ s.canonical_geography.canonical_with_rows_new_source }} (old {{ s.canonical_geography.canonical_with_rows_old_source }});
+        newly present {{ s.canonical_geography.canonical_newly_present.count }}, no longer present {{ s.canonical_geography.canonical_no_longer_present.count }}.
+        Membership is never changed to match a source.</p>
+</div>
+
+<div class="card">
+    <h2>Latest-vintage series (all quarters, recalculated)</h2>
+    <table class="grid"><tr><th>Period</th><th class="num">UKPN</th><th class="num">EPN</th><th class="num">LPN</th><th class="num">SPN</th><th class="num">BEV</th><th class="num">PHEV</th><th class="num">LPN share</th><th>Floor</th></tr>
+    {% for per, v in s.latest_vintage_series.items() %}{% set lp = s.lpn_floor | selectattr('period','equalto',per) | list | last %}
+    <tr class="{{ 'new' if per == new }}"><td>{{ per }}{{ ' (new)' if per == new }}</td>{% for k in ['UKPN','EPN','LPN','SPN','BEV','PHEV'] %}<td class="num">{{ '{:,}'.format(v[k]) }}</td>{% endfor %}
+        <td class="num">{{ lp.lpn_post_share_pct }}%</td><td>{{ 'active' if lp.lpn_floor_active else 'inactive' }}</td></tr>{% endfor %}
+    </table>
+</div>
+
+<div class="card">
+    <h2>QA and downloads</h2>
+    {% if s.qa_failed %}<div class="alert err">{{ s.qa_failed|length }} QA checks failed: {% for f in s.qa_failed %}{{ f.check }} ({{ f.detail }}); {% endfor %}</div>
+    {% else %}<p>All {{ m.qa.total }} checks passed (accounting, geography, aggregation, method, integration, publication options, safety). Each check carries its numerical evidence in the QA report.</p>{% endif %}
+    <p>{% for k, v in downloads.items() %}<a href="/c1-refresh/{{ m.candidate_id }}/download/{{ k }}">{{ v.split('/')[-1] }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>
+    <h3 style="margin-top:12px;">Publication options</h3>
+    <table class="grid"><tr><th>Option</th><th>What it publishes</th><th>Expected production SHA-256 (DNO / LA / LAEP)</th></tr>
+        <tr><td><strong>A</strong> Append June only</td><td>{{ m.publication_options.A_APPEND_ONLY.description }}</td><td><code>{% for v in m.publication_options.A_APPEND_ONLY.expected_production_sha256.values() %}{{ v[:12] }} {% endfor %}</code></td></tr>
+        <tr><td><strong>B</strong> Restated</td><td>{{ m.publication_options.B_RESTATED.description }}</td><td><code>{% for v in m.publication_options.B_RESTATED.expected_production_sha256.values() %}{{ v[:12] }} {% endfor %}</code></td></tr>
+        <tr><td><strong>C</strong> Reject / defer</td><td>{{ m.publication_options.C_REJECT_OR_DEFER.description }}</td><td></td></tr>
+    </table>
+</div>
+
+{% if ready %}
+<div class="card" id="readiness">
+    <h2>Release readiness</h2>
+    <p>{% for name, done in ready.stages %}<span class="badge {{ 'b-ok' if done else 'b-wait' }}">{{ '✓' if done else '…' }} {{ name }}</span>{{ ' → ' if not loop.last }}{% endfor %}</p>
+    <div class="alert err" id="pubDisabled"><strong>Production publication is disabled.</strong> LIVE_RELEASE_ENABLED = {{ ready.live_release_enabled }}; this page has no
+        publication control. A production release needs a separate PRODUCTION authorisation, the release switch and an explicit confirmation
+        using the release tool (experiments/ev_redistribution_c1/release/c1_quarterly_release.py).</div>
+    <div class="kv">
+        <div>Current live release</div><div>{{ m.live_release.release_id }} (5 quarters to 2026-03)</div>
+        <div>Selected candidate</div><div>{{ m.candidate_id }}</div>
+        <div>Restatement policy</div><div>{% if ready.decision %}Option {{ ready.decision.option }} ({{ ready.decision.option_name }}) — {{ ready.decision.decided_by }}, {{ ready.decision.decided_at }}{% else %}none recorded{% endif %}</div>
+        <div>Approval status</div><div>{{ ready.state.state }}{% if ready.decision and ready.decision.restatement_approval %}; restatement approved, bound to report <code>{{ ready.decision.restatement_report_sha256[:16] }}</code>{% endif %}</div>
+        <div>Release package</div><div>{% if ready.package %}{{ ready.package.package_id }}, seal <code>{{ ready.package.seal_sha256[:16] }}</code>, {{ ready.package.periods|length }} quarters{% else %}not prepared {{ ready.package_error or '' }}{% endif %}</div>
+        <div>Dry run</div><div id="dryRunResult">{% if ready.dry_run %}{{ 'PASSED' if ready.dry_run.pass else 'FAILED' }}{{ ' (stale: package changed)' if ready.dry_run.stale }} at {{ ready.dry_run.at }} —
+            {{ ready.dry_run.steps|selectattr('pass')|list|length }}/{{ ready.dry_run.steps|length }} steps{% if ready.dry_run.dashboard %}; dashboard Latest Actual {{ ready.dry_run.dashboard.network_ukpn_kpis.latest[1] }}{% endif %}{% else %}not run{% endif %}</div>
+    </div>
+    {% if ready.dry_run %}<table class="grid" style="margin-top:8px;"><tr><th>Dry-run step</th><th>Result</th></tr>
+        {% for s in ready.dry_run.steps %}<tr><td>{{ s.step }}</td><td><span class="badge {{ 'b-ok' if s.pass else 'b-bad' }}">{{ 'PASS' if s.pass else 'FAIL' }}</span></td></tr>{% endfor %}</table>{% endif %}
+    {% if ready.state.state == 'APPROVED_FOR_FUTURE_RELEASE' %}<p style="margin-top:10px;"><button id="dryRunBtn" {% if running %}disabled{% endif %}>Run disposable dry run</button>
+        <span class="muted" id="dryRunMsg">Builds a temporary copy outside the repository; production is never touched.</span></p>{% endif %}
+    <h3 style="margin-top:12px;">Missing before a production release</h3>
+    <ul style="margin-left:18px;">{% for x in ready.missing %}<li>{{ x }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Release decision</h2>
+    <p class="muted">State history: {% for h in state.history %}{{ h.state }}{{ ' → ' if not loop.last }}{% endfor %}. Decision log chain {{ 'verified' if chain_ok else 'BROKEN' }}.</p>
+    {% for d in decisions %}<div class="alert {{ 'ok' if d.option != 'C' else 'warn' }}">Option {{ d.option }} ({{ d.option_name }}) recorded by {{ d.decided_by }} at {{ d.decided_at }} — evidence: {{ d.approval_evidence }}
+        {% if d.restatement_approval %}; restatement approved: {{ d.restatement_approval.reason }}{% endif %}. Not a release authorisation.</div>{% endfor %}
+    {% if state.state == 'AWAITING_RESTATEMENT_DECISION' %}
+    <form id="decision">
+        <fieldset><label><input type="radio" name="option" value="A"> <strong>A</strong> — Append {{ new }} only; keep all published quarters exactly</label><br>
+            <label><input type="radio" name="option" value="B"> <strong>B</strong> — Publish revised historical quarters and append {{ new }} (needs restatement approval)</label><br>
+            <label><input type="radio" name="option" value="C"> <strong>C</strong> — Reject or defer; keep the dashboard unchanged</label></fieldset>
+        <div id="restateBox" style="display:none;"><fieldset><label><input type="checkbox" id="restateOk"> I approve replacing published historical values with the revisions in
+            restatement_geography.csv (sha256 <code id="repSha">{{ m.files_sha256['reports/restatement_geography.csv'] }}</code>)</label><br>
+            <input type="text" id="restateReason" size="70" placeholder="Restatement reason"></fieldset></div>
+        <p><input type="text" id="decidedBy" size="30" placeholder="Decided by (name)"> <input type="text" id="evidence" size="50" placeholder="Approval evidence (ticket / email reference)"></p>
+        <p><input type="text" id="confirm" size="70" placeholder="Type the confirmation shown after choosing an option"> <span class="muted" id="confirmHint"></span></p>
+        <button type="submit">Record decision</button> <span id="decisionMsg"></span>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const NAMES = {{ options|tojson }}, CID = {{ m.candidate_id|tojson }};
+const dr = document.getElementById('dryRunBtn');
+if (dr) dr.addEventListener('click', async () => {
+    dr.disabled = true;
+    const msg = document.getElementById('dryRunMsg');
+    const r = await fetch(`/api/c1-refresh/${CID}/dry-run`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+    const d = await r.json();
+    if (!d.ok) { msg.textContent = 'Not started: ' + d.error; dr.disabled = false; return; }
+    const poll = async () => {
+        const j = (await (await fetch('/api/c1-refresh/jobs/' + d.job)).json()).job || {};
+        msg.textContent = `Dry run ${d.job}: ${j.state || ''} — ${j.stage || ''}`;
+        if (j.state === 'COMPLETE' || (j.state === 'FAILED' && 'worker_peak_commit_mb' in j)) { location.reload(); return; }
+        setTimeout(poll, 2000);
+    };
+    poll();
+});
+const form = document.getElementById('decision');
+if (form) {
+    form.querySelectorAll('input[name=option]').forEach(r => r.addEventListener('change', () => {
+        document.getElementById('restateBox').style.display = r.value === 'B' ? 'block' : 'none';
+        document.getElementById('confirmHint').textContent = 'Type: ' + NAMES[r.value] + ' ' + CID;
+    }));
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const opt = (form.querySelector('input[name=option]:checked') || {}).value;
+        const body = {option: opt, decided_by: document.getElementById('decidedBy').value, evidence: document.getElementById('evidence').value,
+                      confirmation: document.getElementById('confirm').value};
+        if (opt === 'B') body.restatement_approval = {approved: document.getElementById('restateOk').checked,
+            reason: document.getElementById('restateReason').value, report_sha256: document.getElementById('repSha').textContent};
+        const r = await fetch(`/api/c1-refresh/${CID}/decision`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+        const d = await r.json();
+        document.getElementById('decisionMsg').textContent = d.ok ? 'Recorded.' : 'Not recorded: ' + d.error;
+        if (d.ok) location.reload();
+    });
+}
+</script>
+{% endblock %}

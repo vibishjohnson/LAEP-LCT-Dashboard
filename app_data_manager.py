@@ -31,6 +31,8 @@ from data_manager.ingestion import web as ingestion_web
 
 app = Flask(__name__)
 ingestion_web.init_app(app)   # /dft-ingest, /dft-sources, /api/ingest/* (staging only; never writes production)
+from data_manager.c1_refresh import web as c1_refresh_web
+c1_refresh_web.init_app(app)  # /c1-refresh (isolated C1 candidates; never publishes)
 db = Database()
 inspector = DftInspector(PROJECT_ROOT)
 smmt_manager = SMmtManager()

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}C1 Quarterly Refresh — LCT Data Manager{% endblock %}
+{% block extra_css %}
+<style>
+    table.grid { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+    table.grid th, table.grid td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; vertical-align: top; }
+    table.grid th { background: #fafafa; color: #555; }
+    .num { text-align: right !important; font-variant-numeric: tabular-nums; }
+    .muted { color: #777; font-size: 0.85em; }
+    .steps { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .step { padding: 6px 12px; border-radius: 4px; background: #eef0fb; color: #5568d3; font-weight: 600; font-size: 0.85em; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: 700; background: #eee; }
+    .b-ok { background: #d4edda; color: #155724; } .b-bad { background: #f8d7da; color: #721c24; } .b-wait { background: #fff3cd; color: #856404; }
+    .alert { padding: 10px 12px; border-radius: 4px; margin: 10px 0; font-size: 0.9em; }
+    .alert.info { background: #e8ebfb; border-left: 3px solid #667eea; } .alert.err { background: #ffe6e6; border-left: 3px solid #cc0000; }
+    button { padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; background: #667eea; color: white; }
+    button:disabled { background: #bbb; cursor: not-allowed; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>C1 quarterly refresh candidates</h2>
+    <div class="steps"><span class="step">1 Validated VEH0135</span><span class="step">2 Generate C1 candidate</span><span class="step">3 QA results</span>
+        <span class="step">4 Historical revision review</span><span class="step">5 Release decision</span></div>
+    <div class="alert info">Candidates are generated in an isolated workspace from immutable, validated source versions. Nothing here changes the live
+        dashboard (release <strong>{{ live_release }}</strong>) or approves a release. C1 history starts in March 2025 and accumulates.</div>
+    <h3>Baseline reproduction of the live release</h3>
+    {% if baseline %}
+    <p>{% if baseline.passed %}<span class="badge b-ok">PASSED</span>{% else %}<span class="badge b-bad">FAILED</span>{% endif %}
+        {{ '{:,}'.format(baseline.rows_reproduced) }} LSOA rows reproduced with
+        {{ baseline.numeric_cell_differences.values()|sum }} numeric differences; integration files byte-identical:
+        {{ baseline.integration_bytes_identical.values()|select|list|length }}/3.
+        <span class="muted">Source {{ baseline.source_sha256[:16] }}, {{ baseline.at }}</span></p>
+    {% else %}<p class="muted">Not run yet (python -m data_manager.c1_refresh.cli baseline). Candidates cannot be generated until it passes.</p>{% endif %}
+</div>
+
+<div class="card">
+    <h2>Validated VEH0135 source versions (candidate registry)</h2>
+    <table class="grid"><tr><th>Version</th><th>Quarter</th><th class="num">Rows</th><th class="num">Size</th><th>SHA-256</th><th>Original file</th><th>Staged</th><th></th></tr>
+    {% for v in versions %}
+    <tr><td>{{ v.label }}</td><td>{{ v.period_label }}</td><td class="num">{{ '{:,}'.format(v.rows) }}</td><td class="num">{{ '{:,}'.format(v.size_bytes) }}</td>
+        <td><code>{{ v.sha256[:16] }}</code></td><td>{{ v.original_filename }}</td><td class="muted">{{ v.staged_at[:19] }}</td>
+        <td><button class="gen" data-label="{{ v.label }}" {% if running or not (baseline and baseline.passed) %}disabled{% endif %}>Generate C1 candidate</button></td></tr>
+    {% else %}<tr><td colspan="8" class="muted">No validated VEH0135 version in the candidate registry.</td></tr>{% endfor %}
+    </table>
+    <p class="muted" id="genStatus">{% if running %}Generation {{ running }} is running…{% endif %}</p>
+</div>
+
+<div class="card">
+    <h2>Candidates</h2>
+    <table class="grid"><tr><th>Candidate</th><th>Source quarter</th><th>Periods</th><th>QA</th><th>Restatements</th><th>State</th><th class="num">Time / peak memory</th></tr>
+    {% for c in candidates %}{% set m = c.manifest %}
+    <tr><td><a href="/c1-refresh/{{ m.candidate_id }}">{{ m.candidate_id }}</a></td><td>{{ m.periods[-1] if m.periods }}</td>
+        <td>{{ m.periods[0] if m.periods }} … {{ m.periods[-1] if m.periods }} ({{ m.periods|length if m.periods }})</td>
+        <td>{% if m.qa %}<span class="badge {{ 'b-ok' if m.qa.all_passed else 'b-bad' }}">{{ m.qa.passed }}/{{ m.qa.total }}</span>{% endif %}</td>
+        <td>{{ 'detected' if m.restatements_detected else 'none' }}</td><td><span class="badge b-wait">{{ c.state.state }}</span></td>
+        <td class="num">{{ m.timings_s.total if m.timings_s }} s / {{ m.resources.peak_commit_mb if m.resources }} MB</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">No candidates yet.</td></tr>{% endfor %}
+    </table>
+</div>
+
+<div class="card">
+    <h2>Recent generation jobs</h2>
+    <table class="grid"><tr><th>Job</th><th>Source</th><th>State</th><th>Stage</th><th>Candidate</th><th class="num">Worker peak MB</th><th>Error</th></tr>
+    {% for j in jobs %}<tr><td>{{ j.job }}</td><td>{{ j.version_label }}</td><td>{{ j.state }}</td><td>{{ j.stage }}</td>
+        <td>{% if j.candidate_id %}<a href="/c1-refresh/{{ j.candidate_id }}">{{ j.candidate_id }}</a>{% endif %}</td>
+        <td class="num">{{ j.worker_peak_commit_mb or '' }}</td><td class="muted">{{ j.error or '' }}</td></tr>{% endfor %}
+    </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('button.gen').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Generate a C1 candidate from ' + b.dataset.label + '?\n\nRuns in the isolated workspace; production is not changed.')) return;
+    document.querySelectorAll('button.gen').forEach(x => x.disabled = true);
+    const r = await fetch('/api/c1-refresh/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version_label: b.dataset.label})});
+    const d = await r.json();
+    const s = document.getElementById('genStatus');
+    if (!d.ok) { s.textContent = 'Not started: ' + d.error; return; }
+    const poll = async () => {
+        const j = (await (await fetch('/api/c1-refresh/jobs/' + d.job)).json()).job || {};
+        s.textContent = `Generation ${d.job}: ${j.state || ''} — ${j.stage || ''}`;
+        if (j.state === 'COMPLETE') { location.href = '/c1-refresh/' + j.candidate_id; return; }
+        if (j.state === 'FAILED') { s.textContent += ' — ' + (j.error || ''); return; }
+        setTimeout(poll, 1500);
+    };
+    poll();
+}));
+</script>
+{% endblock %}
