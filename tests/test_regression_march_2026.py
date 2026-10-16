@@ -22,6 +22,22 @@ from data_manager.dft_normalizer import DfTNormalizer
 class TestMarchRegressionExecution(unittest.TestCase):
     """Execute and validate March 2026 regression."""
 
+    AUTH_PATH = os.path.join(PROJECT_ROOT, "project", "output_processed", "lsoa_ev_bodytype.csv")
+
+    @classmethod
+    def setUpClass(cls):
+        # unittest creates a new instance per test method, so state assigned inside test_01 never reached
+        # test_02/test_03. Load the authoritative March baseline once (read-only) for every test instead.
+        cls.march_auth = None
+        if os.path.exists(cls.AUTH_PATH):
+            df = pd.read_csv(cls.AUTH_PATH)
+            cls.march_auth = df[df['period'] == '2026-03-31'].copy()
+
+    def setUp(self):
+        if self._testMethodName in ("test_02_validate_authoritative_structure", "test_03_authoritative_totals"):
+            self.assertIsNotNone(self.march_auth, "Authoritative output must exist")
+            self.assertGreater(len(self.march_auth), 0, "March 2026 data must exist")
+
     def test_01_load_authoritative_output(self):
         """Load existing authoritative March output."""
         auth_path = os.path.join(PROJECT_ROOT, "project", "output_processed", "lsoa_ev_bodytype.csv")
@@ -47,8 +63,8 @@ class TestMarchRegressionExecution(unittest.TestCase):
 
         self.assertGreater(len(march), 0, "March 2026 data must exist")
 
-        # Store for comparison
-        self.march_auth = march.copy()
+        # The shared baseline used by test_02/test_03 is exactly this slice
+        pd.testing.assert_frame_equal(march, self.march_auth)
 
     def test_02_validate_authoritative_structure(self):
         """Validate authoritative data structure."""
