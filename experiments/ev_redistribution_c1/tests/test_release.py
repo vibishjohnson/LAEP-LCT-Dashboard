@@ -806,7 +806,7 @@ def test_forecasts_and_non_ev_files_untouched_through_promote_and_rollback(env):
     now = {p.name: rel.sha256_file(p) for p in integ.iterdir() if p.name not in TARGETS}
     now['dashboard.html'] = rel.sha256_file(Path(env) / 'dashboard.html')
     assert now == watch
-    for rel_, h in cfg.PINNED_SHA256.items():
+    for rel_, h in rel.effective_pins(env).items():      # pins after any approved re-pin (metadata, SMMT dashboard)
         assert rel.sha256_file(Path(env) / rel_) == h
 
 

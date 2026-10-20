@@ -163,7 +163,12 @@ def seal(obj):
 
 # ------------------------------------------------------------------ approved re-pins (append-only, hash-chained)
 PIN_LOG_REL = f'{cfg.STATE_REL}/pins/pin_log.json'
-REPINNABLE = (f'{cfg.INTEGRATION_REL}/metadata.json',)
+REPINNABLE = (f'{cfg.INTEGRATION_REL}/metadata.json', 'dashboard.html')
+# dashboard.html may be re-pinned for exactly one approved change, and its rollback: the SMMT nowcast loader
+# (data_manager/smmt_dashboard_patch.py) applied to the pinned page, or reverted to it. Any other dashboard hash is refused.
+_DASH_PINNED = '51fcb61fa47f4a245d2905cb60a692db10171f553c08b9369843c34d860a4fc8'
+_DASH_SMMT = 'f93b0b5c0c3efd39363a0013e0cb6f755f62fcbf295d13ffa126c799c40f6f6f'
+DASHBOARD_REPIN = {(_DASH_PINNED, _DASH_SMMT), (_DASH_SMMT, _DASH_PINNED)}
 
 
 class PinLogInvalid(ReleaseError):
@@ -192,6 +197,8 @@ def read_pin_log(root):
             raise PinLogInvalid(f'pin log entry {i} failed its integrity check')
         if e.get('path') not in REPINNABLE or not re.fullmatch(r'[0-9a-f]{64}', str(e.get('new_sha256'))):
             raise PinLogInvalid(f'pin log entry {i} re-pins a path that may not be re-pinned')
+        if e.get('path') == 'dashboard.html' and (e.get('old_sha256'), e.get('new_sha256')) not in DASHBOARD_REPIN:
+            raise PinLogInvalid(f'pin log entry {i} re-pins dashboard.html to an unapproved version')
         prev = e['entry_sha256']
     return entries
 
