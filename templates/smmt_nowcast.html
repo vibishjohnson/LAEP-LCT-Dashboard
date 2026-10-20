@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}SMMT Nowcast — LCT Data Manager{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>SMMT provisional EV nowcast</h2>
+    <p style="color: #555; font-size: 0.95em; margin: 0;">
+        A provisional estimate of EV stock after the latest C1 actual, from SMMT monthly UK new registrations.
+        It is <strong>not an observation</strong> and is kept separate from the C1 EV actuals and the DFES/NESO forecasts.
+        Candidates are generated in isolation and are never published from this page.
+    </p>
+</div>
+
+<div class="card" id="sourcesCard">
+    <h3>Current inputs</h3>
+    {% if preview_error %}
+        <div id="inputsError" style="background: #fee; border-left: 4px solid #c00; padding: 12px;">{{ preview_error }}</div>
+    {% else %}
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.92em;">
+            <tr><td style="padding: 6px; width: 260px;"><strong>Baseline (latest C1 actual)</strong></td>
+                <td style="padding: 6px;" id="baselinePeriod">{{ plan.baseline }} &mdash; live C1 EV actuals; the nowcast starts from this value</td></tr>
+            <tr><td style="padding: 6px;"><strong>SMMT months used</strong></td>
+                <td style="padding: 6px;" id="plannedMonths">{% if plan.months %}{{ plan.months[0] }} to {{ plan.months[-1] }} ({{ plan.months|length }} months){% else %}none{% endif %}</td></tr>
+            <tr><td style="padding: 6px;"><strong>First month without SMMT data</strong></td>
+                <td style="padding: 6px;">{{ plan.info.first_missing_month }} &mdash; the nowcast ends before it</td></tr>
+            {% if plan.info.ignored_after_gap %}
+            <tr><td style="padding: 6px;"><strong>Not used (after a gap)</strong></td><td style="padding: 6px; color: #8a3b00;">{{ plan.info.ignored_after_gap|join(', ') }}</td></tr>
+            {% endif %}
+            {% if plan.info.ignored_at_or_before_baseline %}
+            <tr><td style="padding: 6px;"><strong>Not used (covered by actuals)</strong></td><td style="padding: 6px;">{{ plan.info.ignored_at_or_before_baseline|join(', ') }}</td></tr>
+            {% endif %}
+            <tr><td style="padding: 6px;"><strong>Input fingerprint</strong></td><td style="padding: 6px; font-family: monospace;">{{ plan.fingerprint[:16] }}</td></tr>
+        </table>
+        {% if plan.entries %}
+        <table id="smmtEntries" style="width: 100%; border-collapse: collapse; font-size: 0.9em; margin-top: 12px;">
+            <thead style="background: #f5f5f5;"><tr>
+                <th style="padding: 8px; text-align: left;">Month</th><th style="padding: 8px; text-align: right;">BEV cars</th>
+                <th style="padding: 8px; text-align: right;">BEV vans</th><th style="padding: 8px; text-align: right;">PHEV cars</th>
+                <th style="padding: 8px; text-align: right;">PHEV vans</th><th style="padding: 8px; text-align: left;">Entry note</th></tr></thead>
+            <tbody>
+            {% for e in plan.entries %}
+                {% set key = '%d-%02d'|format(e.year, e.month) %}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px;">{{ key }}</td>
+                    <td style="padding: 8px; text-align: right;">{{ "{:,}".format(e.bev_cars) }}</td>
+                    <td style="padding: 8px; text-align: right;">{{ "{:,}".format(e.bev_vans) }}</td>
+                    <td style="padding: 8px; text-align: right;">{{ "{:,}".format(e.phev_cars) }}</td>
+                    <td style="padding: 8px; text-align: right;">{{ "{:,}".format(e.phev_vans) }}</td>
+                    <td style="padding: 8px; color: {{ '#8a3b00' if 'test' in (plan.notes.get(key) or '')|lower else '#555' }};">{{ plan.notes.get(key) or '' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        <p style="font-size: 0.85em; color: #666;">Change SMMT figures on the <a href="/smmt">SMMT INPUT</a> page. A candidate generated from older figures becomes STALE.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Generate candidate</h3>
+    <button id="generateBtn" class="geo-btn" style="background: #2E7D32; color: white; border-color: #2E7D32; cursor: pointer;" {% if running or preview_error %}disabled{% endif %}>
+        GENERATE NOWCAST CANDIDATE
+    </button>
+    <div id="jobStatus" style="margin-top: 12px; display: none; padding: 12px; border-radius: 4px; background: #eef4fb;">
+        <div><strong>Job:</strong> <span id="jobId"></span> &nbsp; <strong>State:</strong> <span id="jobState"></span></div>
+        <div><strong>Stage:</strong> <span id="jobStage"></span></div>
+        <ol id="jobStages" style="margin: 8px 0 0 18px; font-size: 0.85em;"></ol>
+        <div id="jobResult" style="margin-top: 8px;"></div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Candidates</h3>
+    {% if candidates %}
+    <table id="candidateTable" style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+        <thead style="background: #f5f5f5;"><tr>
+            <th style="padding: 8px; text-align: left;">Candidate</th><th style="padding: 8px;">State</th>
+            <th style="padding: 8px;">Months</th><th style="padding: 8px; text-align: right;">QA</th><th style="padding: 8px;">Created (UTC)</th></tr></thead>
+        <tbody>
+        {% for r in candidates %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px; font-family: monospace;"><a href="/smmt-nowcast/{{ r.m.candidate_id }}">{{ r.m.candidate_id }}</a></td>
+                <td style="padding: 8px; text-align: center;" class="cand-state">{{ r.state }}</td>
+                <td style="padding: 8px; text-align: center;">{% if r.m.nowcast_months %}{{ r.m.nowcast_months[0] }} to {{ r.m.latest_nowcast_month }}{% else %}&mdash;{% endif %}</td>
+                <td style="padding: 8px; text-align: right;">{% if r.m.qa_total %}{{ r.m.qa_passed }}/{{ r.m.qa_total }}{% else %}&mdash;{% endif %}</td>
+                <td style="padding: 8px; text-align: center;">{{ r.m.created_utc }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p id="noCandidates" style="color: #777;">No SMMT nowcast candidates yet.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const btn = document.getElementById('generateBtn');
+const box = document.getElementById('jobStatus');
+function show(job) {
+    box.style.display = 'block';
+    document.getElementById('jobId').textContent = job.job_id;
+    document.getElementById('jobState').textContent = job.state;
+    document.getElementById('jobStage').textContent = job.stage;
+    document.getElementById('jobStages').innerHTML = (job.stages || []).map(s => `<li>${s.stage} <span style="color:#777">${s.at}</span></li>`).join('');
+    const res = document.getElementById('jobResult');
+    if (job.state === 'DONE') {
+        res.innerHTML = `Candidate <a id="newCandidateLink" href="/smmt-nowcast/${job.candidate_id}">${job.candidate_id}</a> generated and validated.`;
+    } else if (job.state === 'FAILED') {
+        res.innerHTML = `<span id="jobError" style="color:#b00020">Generation failed: ${(job.errors || []).join('; ')}</span>` +
+            (job.candidate_id ? ` (record: <a href="/smmt-nowcast/${job.candidate_id}">${job.candidate_id}</a>)` : '') +
+            '. Nothing was published.';
+    }
+}
+async function poll(jid) {
+    const r = await fetch(`/api/smmt-nowcast/job/${jid}`);
+    const job = await r.json();
+    show(job);
+    if (job.state === 'RUNNING') setTimeout(() => poll(jid), 500);
+    else btn.disabled = false;
+}
+if (btn) btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const r = await fetch('/api/smmt-nowcast/generate', { method: 'POST' });
+    const data = await r.json();
+    if (!data.ok) { show({ job_id: '-', state: 'FAILED', stage: '-', errors: [data.error] }); btn.disabled = false; return; }
+    poll(data.job_id);
+});
+</script>
+{% endblock %}

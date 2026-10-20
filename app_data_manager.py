@@ -15,7 +15,7 @@ import sys
 import json
 import calendar
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, redirect, render_template, jsonify, request
 
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -24,32 +24,48 @@ sys.path.insert(0, PROJECT_ROOT)
 from data_manager.db import Database
 from data_manager.dft_inspector import DftInspector
 from data_manager.smmt import SMmtManager
-from data_manager.nowcast import NowcastEngine
 from data_manager.dft_update import DfTUpdateManager
-from data_manager.promotion import AtomicPromotion, ManualRollback, CandidateValidator
+from data_manager.promotion import AtomicPromotion, ManualRollback, CandidateValidator, candidate_status
+from data_manager.candidate_registry import CandidateRegistry
 from data_manager.ingestion import web as ingestion_web
+from data_manager import smmt_web
 
 app = Flask(__name__)
 ingestion_web.init_app(app)   # /dft-ingest, /dft-sources, /api/ingest/* (staging only; never writes production)
 from data_manager.c1_refresh import web as c1_refresh_web
 c1_refresh_web.init_app(app)  # /c1-refresh (isolated C1 candidates; never publishes)
+smmt_web.init_app(app, PROJECT_ROOT)  # /smmt-nowcast (isolated SMMT nowcast candidates and preview; never publishes)
 db = Database()
 inspector = DftInspector(PROJECT_ROOT)
 smmt_manager = SMmtManager()
+candidate_registry = CandidateRegistry(PROJECT_ROOT)
 
-# Initialize nowcast engine with processed DfT stock
-lsoa_ev_path = os.path.join(PROJECT_ROOT, "project", "output_processed", "lsoa_ev_bodytype.csv")
-if os.path.exists(lsoa_ev_path):
-    nowcast_engine = NowcastEngine(lsoa_ev_path)
-else:
-    nowcast_engine = None
+
+def smmt_candidate_card(row):
+    """Summary of an SMMT candidate for the home and candidates pages, read from its sealed manifest."""
+    m = row["m"]
+    first, last = (m.get("nowcast_months") or [None])[0], m.get("latest_nowcast_month")
+    base = sum((m.get("ukpn_baseline_stock") or {}).values()) if m.get("ukpn_baseline_stock") else None
+    end = sum(m["ukpn_stock_by_month"][last].values()) if last and m.get("ukpn_stock_by_month") else None
+    return {
+        "run_id": m["candidate_id"], "type": "SMMT provisional nowcast", "status": row["state"],
+        "status_detail": row["detail"], "created": m.get("created_utc"),
+        "dft_vintage": m.get("baseline_period"), "nowcast_start": first, "nowcast_end": last,
+        "baseline_stock": base, "latest_stock": end, "addition": (end - base) if base is not None and end is not None else None,
+        "qa": f"{m.get('qa_passed')}/{m.get('qa_total')}" if m.get("qa_total") else "FAILED",
+        "description": (f"UKPN EV stock from the C1 actual at {m.get('baseline_period')} plus SMMT registrations "
+                        f"{first} to {last}" if last else "; ".join(m.get("errors", []))),
+        "review_url": f"/smmt-nowcast/{m['candidate_id']}",
+    }
 
 
 @app.route("/")
 def index():
-    """Main dashboard showing current state."""
+    """Main dashboard showing current state and the latest SMMT nowcast candidate."""
     state = inspector.get_current_ev_state()
-    return render_template("dashboard.html", state=state)
+    latest = smmt_web.latest_validated()
+    current_candidate = smmt_candidate_card(latest) if latest else None
+    return render_template("dashboard.html", state=state, current_candidate=current_candidate)
 
 
 @app.route("/api/dft-status")
@@ -239,151 +255,77 @@ def dft_update():
 
 @app.route("/nowcast")
 def nowcast_preview():
-    """SMMT Nowcast preview and generation interface."""
-    if not nowcast_engine:
-        return render_template(
-            "nowcast_preview.html",
-            error="Nowcast engine not initialized (lsoa_ev_bodytype.csv not found)"
-        )
-
-    # Get weight info
-    weights_summary = {}
-    for cat in ["BEV Cars", "BEV Vans", "PHEV Cars", "PHEV Vans"]:
-        if cat in nowcast_engine.weights:
-            w = nowcast_engine.weights[cat]
-            weights_summary[cat] = {
-                'gb_total': w['gb_total'],
-                'ukpn_total': w['ukpn_total'],
-                'ukpn_weight': f"{w['gb_weight']:.1%}",
-                'lsoa_count': len(w['lsoa_weights'])
-            }
-
-    # Get SMMT history
-    smmt_history = db.get_current_smmt_entries_for_history()
-    smmt_by_month = {}
-    for entry in smmt_history:
-        key = (entry['year'], entry['month'])
-        smmt_by_month[key] = entry
-
-    return render_template(
-        "nowcast_preview.html",
-        baseline_period="2026-03-31",
-        weights_summary=weights_summary,
-        smmt_history=smmt_history,
-        qa_report=nowcast_engine.get_qa_report()
-    )
+    """Former nowcast page: generation, review and preview now live on /smmt-nowcast."""
+    return redirect("/smmt-nowcast")
 
 
 @app.route("/api/generate-nowcast", methods=["POST"])
 def api_generate_nowcast():
-    """Generate SMMT nowcast allocation."""
-    if not nowcast_engine:
-        return jsonify({
-            "success": False,
-            "message": "Nowcast engine not initialized"
-        }), 500
-
-    data = request.get_json()
-    months = data.get("months", [])  # List of (year, month) tuples
-
-    if not months:
-        return jsonify({
-            "success": False,
-            "message": "No months specified"
-        })
-
-    # Collect SMMT data for requested months
-    monthly_smmt = {}
-    for year, month in months:
-        entry = db.get_current_smmt_entry(year, month)
-        if not entry:
-            return jsonify({
-                "success": False,
-                "message": f"SMMT data not found for {year}-{month:02d}"
-            })
-
-        # Generate month-end date using calendar.monthrange for robustness
-        last_day = calendar.monthrange(year, month)[1]
-        month_str = f"{year}-{month:02d}-{last_day:02d}"
-        monthly_smmt[month_str] = {
-            "BEV Cars": entry['bev_cars'],
-            "BEV Vans": entry['bev_vans'],
-            "PHEV Cars": entry['phev_cars'],
-            "PHEV Vans": entry['phev_vans']
-        }
-
-    # Validate QA
-    is_valid, errors = nowcast_engine.validate_qa()
-    if not is_valid:
-        return jsonify({
-            "success": False,
-            "message": f"QA validation failed: {errors}"
-        })
-
-    # Run allocation
+    """Start an SMMT nowcast candidate job (all contiguous SMMT months after the latest C1 actual)."""
     try:
-        monthly_allocs = {}
-        for month_str, smmt_input in monthly_smmt.items():
-            allocs = nowcast_engine.allocate_monthly_smmt(smmt_input, month_str)
-            monthly_allocs[month_str] = list(allocs.values())
+        jid = smmt_web.start_job(app.extensions["lct_smmt"])
+    except smmt_web.CandidateError as e:
+        return jsonify({"success": False, "message": str(e)}), 409
+    return jsonify({"success": True, "message": "Nowcast candidate generation started", "job_id": jid,
+                    "status_url": f"/api/smmt-nowcast/job/{jid}"}), 202
 
-        # Build cumulative
-        cumulative = nowcast_engine.build_cumulative_stock(monthly_allocs)
 
-        # Create a candidate run with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        run_id = f"nowcast_{timestamp}"
+@app.route("/api/build-complete-candidate", methods=["POST"])
+def api_build_complete_candidate():
+    """Retired: candidates are no longer merged into lsoa_ev_bodytype.csv (that mixed the nowcast with DfT actuals)."""
+    return jsonify({"success": False,
+                    "message": "Retired. SMMT nowcast candidates are generated complete on /smmt-nowcast."}), 410
 
-        # Create staging directory for this run
-        staging_root = os.path.join(PROJECT_ROOT, "project", "dft_staging")
-        run_dir = os.path.join(staging_root, f"run_{run_id}")
-        outputs_dir = os.path.join(run_dir, "outputs")
-        os.makedirs(outputs_dir, exist_ok=True)
 
-        # Store metadata
-        metadata = {
-            "run_id": run_id,
-            "created_at": datetime.now().isoformat(),
-            "type": "nowcast",
-            "months_included": sorted(list(monthly_smmt.keys())),
-            "qa_status": "PASS",
-            "old_vintage": "2026-03-31",
-            "new_vintage": "2026-03-31"
-        }
-
-        metadata_path = os.path.join(run_dir, "metadata.json")
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, indent=2)
-
-        return jsonify({
-            "success": True,
-            "message": f"Nowcast candidate created: {run_id}",
-            "run_id": run_id,
-            "qa_report": nowcast_engine.get_qa_report()
+@app.route("/candidates")
+def candidates():
+    """SMMT nowcast candidates (from their sealed manifests) and legacy admin-promotion runs."""
+    candidates_list = [smmt_candidate_card(r) for r in smmt_web.candidate_rows()]
+    for run_id, info in candidate_registry.list_candidates().items():
+        st = candidate_status(PROJECT_ROOT, run_id)
+        candidates_list.append({
+            "run_id": run_id, "type": f"Legacy {info.get('type', 'run')}", "status": st["status"],
+            "status_detail": "; ".join(st["errors"]), "created": info.get("created_at"), "legacy": True,
+            "description": "Legacy admin-promotion run (replaces production files). Not eligible while quarantined.",
+            "review_url": f"/promotion-review/{run_id}",
         })
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": f"Allocation error: {str(e)}"
-        }), 500
+    return render_template("candidates.html", candidates=candidates_list)
 
 
 @app.route("/promotion-review/<run_id>")
 def promotion_review(run_id):
     """Review and confirm candidate promotion."""
-    promoter = AtomicPromotion(PROJECT_ROOT)
-    validator = CandidateValidator(PROJECT_ROOT)
+    if run_id.startswith("SMMT-"):
+        return redirect(f"/smmt-nowcast/{run_id}")
+    # Get candidate from registry
+    candidate_info = candidate_registry.get_candidate(run_id)
 
-    can_promote, errors = validator.can_promote(run_id)
-    metadata = validator.get_candidate_metadata(run_id)
+    if not candidate_info:
+        return render_template(
+            "promotion_review.html",
+            run_id=run_id,
+            can_promote=False,
+            errors=[f"Candidate {run_id} not found in registry"],
+            metadata={},
+            candidate_type=None,
+            current_vintage=inspector.get_current_ev_state()['latest_ev_period']
+        ), 404
+
+    candidate_type = candidate_info.get("type", "unknown")
+    metadata = candidate_info.get("metadata", {})
+
+    # Eligibility comes from the same checks the promotion API applies (quarantine, QA, EV actuals, ...)
+    eligibility = candidate_status(PROJECT_ROOT, run_id)
+    can_promote = eligibility["can_promote"]
+    errors = eligibility["errors"]
 
     return render_template(
         "promotion_review.html",
         run_id=run_id,
         can_promote=can_promote,
         errors=errors,
-        metadata=metadata or {},
+        metadata=metadata,
+        candidate_type=candidate_type,
         current_vintage=inspector.get_current_ev_state()['latest_ev_period']
     )
 
@@ -396,6 +338,11 @@ def api_promote():
 
     if not run_id:
         return jsonify({"success": False, "message": "Run ID required"}), 400
+    if run_id.startswith("SMMT-"):
+        return jsonify({"success": False, "run_id": run_id,
+                        "message": "SMMT nowcast candidates cannot be promoted here: the dashboard forecast files and "
+                                   "dashboard.html are pinned by the C1 release protections. Publication needs a "
+                                   "separately approved, governed change."}), 403
 
     promoter = AtomicPromotion(PROJECT_ROOT)
     success, message = promoter.promote(run_id)

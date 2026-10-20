@@ -52,7 +52,11 @@
     <div class="info-row">
         <span class="info-label">Candidate Status:</span>
         <span class="info-value">
-            <span class="status-badge status-pending">Use DFT UPDATE to stage candidates</span>
+            {% if current_candidate %}
+                <span class="status-badge status-ok">SMMT nowcast {{ current_candidate.status }} (not published)</span>
+            {% else %}
+                <span class="status-badge status-pending">No validated SMMT nowcast candidate</span>
+            {% endif %}
         </span>
     </div>
 
@@ -70,7 +74,7 @@
         <a href="/smmt" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
             ENTER SMMT DATA
         </a>
-        <a href="/nowcast" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
+        <a href="/smmt-nowcast" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
             GENERATE NOWCAST
         </a>
         <a href="/dft-update" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
@@ -82,8 +86,59 @@
         <a href="/promotion-history" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
             PRODUCTION HISTORY
         </a>
+        <a href="/candidates" style="display: block; padding: 20px; background: #f0f2f9; border-radius: 6px; text-decoration: none; color: #667eea; font-weight: 600; border: 2px solid #667eea; text-align: center; transition: all 0.2s;">
+            VIEW CANDIDATES
+        </a>
     </div>
 </div>
+
+{% if current_candidate %}
+<div class="card" style="background: #f3f8f3; border-left: 4px solid #2E7D32;">
+    <h2 style="margin-top: 0;">SMMT provisional nowcast &mdash; latest validated candidate</h2>
+    <p style="margin: 0 0 15px 0; color: #555; font-size: 13px;">Provisional estimate, not an observation. Candidate only: not published to the dashboard.</p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+        <div style="background: white; padding: 12px; border-radius: 4px;">
+            <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">State</strong>
+            <div id="homeCandidateState" style="font-size: 16px; font-weight: 600; color: #2E7D32;">{{ current_candidate.status }}</div>
+        </div>
+        <div style="background: white; padding: 12px; border-radius: 4px;">
+            <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">Latest C1 actual (baseline)</strong>
+            <div style="font-size: 16px; font-weight: 600; color: #0066cc;">{{ current_candidate.dft_vintage }}</div>
+        </div>
+        <div style="background: white; padding: 12px; border-radius: 4px;">
+            <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">UKPN stock at baseline</strong>
+            <div style="font-size: 16px; font-weight: 600; color: #0066cc;">{{ "{:,}".format(current_candidate.baseline_stock) }}</div>
+        </div>
+        <div style="background: white; padding: 12px; border-radius: 4px;">
+            <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">UKPN nowcast {{ current_candidate.nowcast_end }}</strong>
+            <div id="homeCandidateLatest" style="font-size: 16px; font-weight: 600; color: #0066cc;">{{ "{:,}".format(current_candidate.latest_stock) }}</div>
+        </div>
+    </div>
+
+    <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 15px;">
+        <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">Nowcast period</strong>
+        <div style="font-size: 14px;">{{ current_candidate.nowcast_start }} &rarr; {{ current_candidate.nowcast_end }} ({{ "{:,}".format(current_candidate.addition) }} vehicles added)</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        <div style="background: white; padding: 12px; border-radius: 4px;">
+            <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">Candidate</strong>
+            <div style="font-size: 12px; font-family: monospace;">{{ current_candidate.run_id }}</div>
+        </div>
+        <div style="background: white; padding: 12px; border-radius: 4px;">
+            <strong style="display: block; color: #666; font-size: 12px; margin-bottom: 4px;">QA checks passed</strong>
+            <div style="font-size: 14px; font-weight: 600; color: #2E7D32;">{{ current_candidate.qa }}</div>
+        </div>
+    </div>
+
+    <div style="margin-top: 15px;">
+        <a href="{{ current_candidate.review_url }}" style="display: inline-block; background: #2E7D32; color: white; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: 600; cursor: pointer;">
+            REVIEW CANDIDATE
+        </a>
+    </div>
+</div>
+{% endif %}
 
 <div class="card">
     <h2>✓ System Status</h2>

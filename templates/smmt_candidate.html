@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ m.candidate_id }} — SMMT Nowcast{% endblock %}
+
+{% block content %}
+{% set colour = {'VALIDATED': '#1b5e20', 'STALE': '#8a5a00', 'REJECTED': '#6a1b9a', 'FAILED': '#b00020', 'TAMPERED': '#b00020'} %}
+<div class="card">
+    <h2 style="margin-bottom: 6px;">SMMT provisional nowcast candidate</h2>
+    <div style="font-family: monospace;" id="candidateId">{{ m.candidate_id }}</div>
+    <div style="margin-top: 10px;">
+        <span id="candidateState" style="display: inline-block; padding: 6px 12px; border-radius: 4px; font-weight: 600; color: white; background: {{ colour.get(st.state, '#555') }};">{{ st.state }}</span>
+        <span style="margin-left: 10px;">Published: <strong id="publishedFlag">no</strong></span>
+        <span style="margin-left: 10px; color: #555;" id="stateDetail">{{ st.detail }}</span>
+    </div>
+    <p style="font-size: 0.9em; color: #555;">{{ m.publication }}</p>
+</div>
+
+{% if m.status == 'FAILED' %}
+<div class="card" style="border-left: 4px solid #b00020;">
+    <h3>Validation errors</h3>
+    <ul id="validationErrors">{% for e in m.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    <p>No data files were written and nothing was published.</p>
+</div>
+{% else %}
+
+{% if m.warnings %}
+<div class="card" style="border-left: 4px solid #FFC107; background: #FFFBEA;">
+    <h3>Warnings</h3>
+    <ul id="warnings">{% for w in m.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="card">
+    <h3>Coverage</h3>
+    <table style="font-size: 0.92em;">
+        <tr><td style="padding: 4px 16px 4px 0;"><strong>Baseline</strong></td><td id="covBaseline">{{ m.baseline_period }} ({{ m.baseline_source }})</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;"><strong>Nowcast months</strong></td><td id="covMonths">{{ m.nowcast_months|join(', ') }}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;"><strong>Latest defensible month</strong></td><td id="covLatest">{{ m.latest_nowcast_month }} (no SMMT figures for {{ m.month_info.first_missing_month }})</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;"><strong>Geography</strong></td><td id="covGeo">{{ "{:,}".format(m.coverage.lsoa) }} LSOAs, {{ m.coverage.dno }} DNOs, {{ m.coverage.la }} LAs, {{ m.coverage.laep }} LAEPs</td></tr>
+        {% if m.dno_share_of_uk_stock %}
+        <tr><td style="padding: 4px 16px 4px 0;"><strong>Fixed licence-area shares of UK stock</strong></td><td id="dnoShares">
+            {% for f in ('BEV', 'PHEV') %}{{ f }}: {% for d in ('EPN', 'LPN', 'SPN') %}{{ d }} {{ '%.3f'|format(m.dno_share_of_uk_stock[f][d] * 100) }}%{% if not loop.last %}, {% endif %}{% endfor %}{% if not loop.last %} &nbsp;|&nbsp; {% endif %}{% endfor %}
+            (held fixed until a newer C1 quarter is the baseline)</td></tr>
+        {% endif %}
+        <tr><td style="padding: 4px 16px 4px 0;"><strong>UK &rarr; UKPN share</strong></td><td>BEV {{ '%.2f'|format(m.ukpn_share.BEV * 100) }}% &nbsp; PHEV {{ '%.2f'|format(m.ukpn_share.PHEV * 100) }}%
+            (C1 UKPN stock / UK VEH0135 stock at {{ m.baseline_period }}: BEV {{ "{:,}".format(m.ukpn_baseline_stock.BEV) }} / {{ "{:,}".format(m.uk_stock_at_baseline.BEV) }},
+            PHEV {{ "{:,}".format(m.ukpn_baseline_stock.PHEV) }} / {{ "{:,}".format(m.uk_stock_at_baseline.PHEV) }})</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h3>UKPN totals by month</h3>
+    <table id="ukpnTotals" style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+        <thead style="background: #f5f5f5;"><tr><th style="padding: 6px; text-align: left;">Month</th><th style="padding: 6px; text-align: left;">Fuel</th>
+            <th style="padding: 6px; text-align: right;">SMMT UK registrations</th><th style="padding: 6px; text-align: right;">UKPN additions</th>
+            <th style="padding: 6px; text-align: right;">Cumulative additions</th><th style="padding: 6px; text-align: right;">UKPN stock</th></tr></thead>
+        <tbody>
+        <tr style="border-bottom: 1px solid #eee; color: #555;"><td style="padding: 6px;">{{ m.baseline_period }}</td><td style="padding: 6px;">BEV / PHEV</td>
+            <td></td><td></td><td></td><td style="padding: 6px; text-align: right;">{{ "{:,}".format(m.ukpn_baseline_stock.BEV) }} / {{ "{:,}".format(m.ukpn_baseline_stock.PHEV) }} (C1 actual)</td></tr>
+        {% for r in t.summary %}
+        <tr style="border-bottom: 1px solid #eee;" data-period="{{ r.period }}" data-fuel="{{ r.EV_Type }}">
+            <td style="padding: 6px;">{{ r.period }}</td><td style="padding: 6px;">{{ r.EV_Type }}</td>
+            <td style="padding: 6px; text-align: right;">{{ "{:,}".format(r.smmt_uk_registrations) }}</td>
+            <td style="padding: 6px; text-align: right;">{{ "{:,}".format(r.ukpn_additions) }}</td>
+            <td style="padding: 6px; text-align: right;">{{ "{:,}".format(r.ukpn_cumulative_additions) }}</td>
+            <td style="padding: 6px; text-align: right;" class="ukpn-stock">{{ "{:,}".format(r.ukpn_nowcast_stock) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h3>DNO nowcast stock</h3>
+    <div style="overflow-x: auto;">{{ t.dno.to_html(classes='dno-table', border=0, float_format='{:,.0f}'.format)|safe }}</div>
+</div>
+
+<div class="card">
+    <h3>Changes from the previous candidate</h3>
+    {% if m.diff_vs_previous %}
+        <p>Previous: <span style="font-family: monospace;">{{ m.diff_vs_previous.previous_candidate_id }}</span> &mdash;
+           SMMT months changed or added: {{ m.diff_vs_previous.smmt_months_changed_or_added|join(', ') or 'none' }};
+           baseline changed: {{ 'yes' if m.diff_vs_previous.baseline_changed else 'no' }};
+           identical data: {{ 'yes' if m.diff_vs_previous.same_data else 'no' }}</p>
+        <table id="diffTable" style="border-collapse: collapse; font-size: 0.9em;">
+            <thead style="background: #f5f5f5;"><tr><th style="padding: 6px;">Month</th><th style="padding: 6px;">Fuel</th><th style="padding: 6px;">Previous</th><th style="padding: 6px;">This</th><th style="padding: 6px;">Change</th></tr></thead>
+            <tbody>{% for r in m.diff_vs_previous.ukpn_stock %}
+                <tr><td style="padding: 6px;">{{ r.period }}</td><td style="padding: 6px;">{{ r.EV_Type }}</td>
+                    <td style="padding: 6px; text-align: right;">{{ "{:,}".format(r.previous) if r.previous is not none else '—' }}</td>
+                    <td style="padding: 6px; text-align: right;">{{ "{:,}".format(r.this) if r.this is not none else '—' }}</td>
+                    <td style="padding: 6px; text-align: right;">{{ "{:+,}".format(r.change) if r.change is not none else '—' }}</td></tr>
+            {% endfor %}</tbody>
+        </table>
+    {% else %}
+        <p id="noPrevious">This is the first validated candidate.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>QA checks ({{ m.qa_passed }}/{{ m.qa_total }} passed)</h3>
+    <table id="qaTable" style="width: 100%; border-collapse: collapse; font-size: 0.88em;">
+        {% for q in t.qa %}
+        <tr style="border-bottom: 1px solid #eee;"><td style="padding: 5px; width: 30px; color: {{ '#1b5e20' if q.passed else '#b00020' }};">{{ 'PASS' if q.passed else 'FAIL' }}</td>
+            <td style="padding: 5px; font-family: monospace;">{{ q.check }}</td><td style="padding: 5px; color: #555;">{{ q.detail }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="card">
+    <h3>Provenance</h3>
+    <table style="font-size: 0.85em;" id="provenance">
+        <tr><td style="padding: 4px 16px 4px 0;">Method</td><td>{{ m.method_id }}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;">Input fingerprint</td><td style="font-family: monospace;">{{ m.inputs.fingerprint }}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;">C1 LSOA output</td><td style="font-family: monospace;">{{ m.inputs.c1_lsoa_sha256 }}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;">VEH0135</td><td style="font-family: monospace;">{{ m.inputs.veh0135_sha256 }}</td></tr>
+        {% for n, h in m.inputs.live_integration_sha256.items() %}
+        <tr><td style="padding: 4px 16px 4px 0;">live {{ n }}</td><td style="font-family: monospace;">{{ h }}</td></tr>
+        {% endfor %}
+        <tr><td style="padding: 4px 16px 4px 0;">SMMT entries (database ids)</td><td>{% for e in m.inputs.smmt_entries %}{{ '%d-%02d'|format(e.year, e.month) }}: #{{ e.id }}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;">Data hash</td><td style="font-family: monospace;">{{ m.data_sha256 }}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0;">Manifest seal</td><td style="font-family: monospace;">{{ m.seal_sha256 }}</td></tr>
+    </table>
+    <p style="font-size: 0.85em;">Downloads:
+        {% for k, v in downloads.items() %}<a href="/smmt-nowcast/{{ m.candidate_id }}/download/{{ k }}">{{ v }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+</div>
+
+<div class="card">
+    <h3>Dashboard preview</h3>
+    {% if st.state == 'VALIDATED' or st.state == 'STALE' %}
+        <p>Opens the dashboard with this candidate's SMMT rows overlaid on the live files. Nothing is written; the live dashboard is unchanged.</p>
+        <a id="previewLink" href="/smmt-preview/{{ m.candidate_id }}/dashboard.html" target="_blank" style="display: inline-block; background: #2E7D32; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600;">OPEN DASHBOARD PREVIEW</a>
+    {% else %}
+        <p>Preview is available for validated candidates only.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Decision</h3>
+    {% if rejection %}
+        <p id="rejectionInfo">Rejected {{ rejection.rejected_utc }}: {{ rejection.reason }}</p>
+    {% elif st.state in ('VALIDATED', 'STALE') %}
+        <p>Publishing is not available in the data manager (see above). A candidate can be rejected so it is no longer offered.</p>
+        <input id="rejectReason" placeholder="Reason for rejection" style="width: 60%; padding: 6px;">
+        <button id="rejectBtn" class="geo-btn" style="cursor: pointer;">REJECT CANDIDATE</button>
+        <div id="rejectMsg" style="margin-top: 8px;"></div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const rb = document.getElementById('rejectBtn');
+if (rb) rb.addEventListener('click', async () => {
+    const reason = document.getElementById('rejectReason').value;
+    const r = await fetch('/api/smmt-nowcast/{{ m.candidate_id }}/reject', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
+    const d = await r.json();
+    const msg = document.getElementById('rejectMsg');
+    msg.textContent = d.ok ? 'Rejected.' : d.error;
+    msg.style.color = d.ok ? '#1b5e20' : '#b00020';
+    if (d.ok) setTimeout(() => location.reload(), 400);
+});
+</script>
+{% endblock %}
