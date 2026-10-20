@@ -1,0 +1,43 @@
+{
+ "schema": "lct-smmt-nowcast-publication/1",
+ "candidate_id": "SMMT-2026-06-to-2026-08-72c5d261-20261020T112956Z",
+ "candidate_seal_sha256": "233ae7efed299bf29d1656934d1a1ffca8b3499f141b576bd0ee0b74fb192f41",
+ "method_id": "SMMT_NOWCAST_C1_FIXED_DNO_SHARE_V1",
+ "label": "SMMT provisional EV nowcast (not an observation)",
+ "baseline_period": "2026-06",
+ "nowcast_months": [
+  "2026-07",
+  "2026-08"
+ ],
+ "latest_nowcast_month": "2026-08",
+ "dno_share_of_uk_stock": {
+  "BEV": {
+   "EPN": 0.14361251237152295,
+   "LPN": 0.058030628800813173,
+   "SPN": 0.088556583402743
+  },
+  "PHEV": {
+   "EPN": 0.15394486951261238,
+   "LPN": 0.07340715139313819,
+   "SPN": 0.09435455478585986
+  }
+ },
+ "uk_stock_at_baseline": {
+  "BEV": 2168286,
+  "PHEV": 1008335
+ },
+ "c1_release_sources": {
+  "c1_lsoa_path": "experiments/ev_redistribution_c1/quarterly_archive/C1C-2026Q2-ce41d178-20261015T130154/candidate/c1_lsoa_latest_vintage.csv",
+  "veh0135_path": "experiments/ev_redistribution_c1/quarterly_archive/C1C-2026Q2-ce41d178-20261015T130154/source/VEH0135_2026Q2_original.csv",
+  "release": "c1-20261020-ukpn-ev-2026q2"
+ },
+ "input_fingerprint": "72c5d2614dca325d3a4421dbf6dbab181e6a6ffd7c1937a18746e0c3ee28ca9a",
+ "files": {
+  "smmt_nowcast_dno.csv": "2b8e47faab4d03a771a9b99764383f33aa1c4d690b969b9153e49b1f79edf8a6",
+  "smmt_nowcast_la.csv": "93ab78af34b39ee147642f5e765778a4e494b1b3ed3b0e2079c0ddbb0a9b10ae",
+  "smmt_nowcast_laep.csv": "1e9d6c5a2446d9e739e10ad078536d851dca901447eb8455ef585b962ee70ca1"
+ },
+ "published_at": "2026-10-20T11:30:41Z",
+ "previous_candidate_id": null,
+ "backup": "project/dft_staging/smmt_publish_backups/20261020T113041Z-dba561"
+}

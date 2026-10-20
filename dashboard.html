@@ -480,6 +480,7 @@
                     <label><input type="checkbox" id="showDfes" checked> DFES</label>
                     <label><input type="checkbox" id="showNesoHt" checked> <span id="seriesHtLabel">Holistic Transition</span></label>
                     <label><input type="checkbox" id="showNesoHtb" checked> <span id="seriesHtbLabel">Holistic Transition Basic</span></label>
+                    <label id="showSmmtLabel"><input type="checkbox" id="showSmmt" checked> SMMT nowcast</label>
                 </div>
             </div>
 
@@ -561,6 +562,7 @@
         let showDfes = true;
         let showNesoHt = true;
         let showNesoHtb = true;
+        let showSmmt = true;
         // 31 March 2025 DFES anchor: every EV series is measured from this period
         const EV_BASELINE_PERIOD = '2025-03';
 
@@ -802,6 +804,105 @@
             return parsed.data;
         }
 
+        // SMMT provisional nowcast: optional, versioned integration files written by the SMMT publication step
+        // (data_manager/smmt_publish.py). Shown only when the manifest's baseline equals the latest C1 actual and every
+        // file matches its SHA-256; otherwise the charts fall back to actuals and forecasts only.
+        const SMMT_BASE = './project/output_processed/integration/';
+        const smmtLevelState = {};
+        const SMMT_FETCH = { cache: 'no-store' };       // never show a cached manifest or file after a republish/withdrawal
+        let smmtManifestPromise = null;
+
+        // SHA-256 of the file text: Web Crypto where available (HTTPS / localhost), otherwise a small JS implementation
+        // so the integrity check also works when the dashboard is served over plain HTTP.
+        function sha256HexJs(bytes) {
+            const K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+                0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+                0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+                0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+                0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+                0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+                0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+                0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+            const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+            const len = bytes.length, total = Math.ceil((len + 9) / 64) * 64;
+            const m = new Uint8Array(total);
+            m.set(bytes);
+            m[len] = 0x80;
+            const dv = new DataView(m.buffer);
+            dv.setUint32(total - 8, Math.floor(len / 0x20000000));
+            dv.setUint32(total - 4, (len * 8) >>> 0);
+            const w = new Uint32Array(64);
+            const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+            for (let off = 0; off < total; off += 64) {
+                for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+                for (let i = 16; i < 64; i++) {
+                    const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+                    const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+                    w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+                }
+                let [a, b, c, d, e, f, g, h] = H;
+                for (let i = 0; i < 64; i++) {
+                    const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) >>> 0;
+                    const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+                    h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+                }
+                H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+                H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+            }
+            return H.map(x => x.toString(16).padStart(8, '0')).join('');
+        }
+
+        async function sha256Hex(text) {
+            const bytes = new TextEncoder().encode(text);
+            if (typeof crypto !== 'undefined' && crypto.subtle) {
+                const buf = await crypto.subtle.digest('SHA-256', bytes);
+                return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+            return sha256HexJs(bytes);
+        }
+
+        function loadSmmtManifest() {
+            if (!smmtManifestPromise) smmtManifestPromise = (async () => {
+                try {
+                    const [mRes, metaRes] = await Promise.all([fetch(SMMT_BASE + 'smmt_nowcast_manifest.json', SMMT_FETCH), fetch(SMMT_BASE + 'metadata.json', SMMT_FETCH)]);
+                    if (!mRes.ok) return { state: 'none' };
+                    const m = await mRes.json();
+                    const meta = metaRes.ok ? await metaRes.json() : {};
+                    if (!m || m.baseline_period !== meta.latest_actual_period) {
+                        return { state: 'stale', manifest: m || {}, latest: meta.latest_actual_period };
+                    }
+                    return { state: 'current', manifest: m };
+                } catch (e) {
+                    return { state: 'invalid', reason: e.message };
+                }
+            })();
+            return smmtManifestPromise;
+        }
+
+        async function loadSmmtNowcast(level) {
+            const st = await loadSmmtManifest();
+            if (st.state !== 'current') { smmtLevelState[level] = st; return []; }
+            const name = `smmt_nowcast_${level}.csv`;
+            try {
+                const res = await fetch(SMMT_BASE + name, SMMT_FETCH);
+                if (!res.ok) throw new Error(`${name} is missing`);
+                const text = await res.text();
+                if (!st.manifest.files || await sha256Hex(text) !== st.manifest.files[name]) {
+                    throw new Error(`${name} does not match the published manifest`);
+                }
+                const rows = parseCsv(text);
+                const months = new Set(st.manifest.nowcast_months || []);
+                if (rows.some(r => r.forecast_source !== 'SMMT_NOWCAST' || !months.has(r.period))) {
+                    throw new Error(`${name} has rows outside the published nowcast months`);
+                }
+                smmtLevelState[level] = st;
+                return rows;
+            } catch (e) {
+                smmtLevelState[level] = { state: 'invalid', reason: e.message, manifest: st.manifest };
+                return [];
+            }
+        }
+
         async function loadEvIntegrationNetwork() {
             console.log('Loading EV integration data...');
             const [forecastRes, actualRes, metaRes] = await Promise.all([
@@ -815,7 +916,8 @@
                 const actual_status = actualRes.ok ? 'OK' : actualRes.status;
                 throw new Error(`EV integration files missing. Forecast: ${forecast_status}, Actual: ${actual_status}`);
             }
-            evForecastDno = parseCsv(await forecastRes.text());
+            evForecastDno = parseCsv(await forecastRes.text()).filter(r => r.forecast_source !== 'SMMT_NOWCAST')
+                .concat(await loadSmmtNowcast('dno'));
             evActualDno = parseCsv(await actualRes.text());
             if (metaRes.ok) evMetadata = await metaRes.json();
             evIntegrationLoaded = true;
@@ -827,7 +929,8 @@
                 fetch('./project/output_processed/integration/monthly_forecast_la.csv'),
                 fetch('./project/output_processed/integration/ev_actuals_la.csv')
             ]);
-            evForecastLa = parseCsv(await forecastRes.text());
+            evForecastLa = parseCsv(await forecastRes.text()).filter(r => r.forecast_source !== 'SMMT_NOWCAST')
+                .concat(await loadSmmtNowcast('la'));
             evActualLa = parseCsv(await actualRes.text());
             evLaIntegrationLoaded = true;
         }
@@ -838,7 +941,8 @@
                 fetch('./project/output_processed/integration/monthly_forecast_laep.csv'),
                 fetch('./project/output_processed/integration/ev_actuals_laep.csv')
             ]);
-            evForecastLaep = parseCsv(await forecastRes.text());
+            evForecastLaep = parseCsv(await forecastRes.text()).filter(r => r.forecast_source !== 'SMMT_NOWCAST')
+                .concat(await loadSmmtNowcast('laep'));
             evActualLaep = parseCsv(await actualRes.text());
             evLaepIntegrationLoaded = true;
         }
@@ -2067,7 +2171,18 @@
             });
             const latestActualPeriod = observed[observed.length - 1].period;
 
-            const windowRows = sorted.filter(r => r.period >= EV_BASELINE_PERIOD && r.period <= latestActualPeriod);
+            // SMMT provisional nowcast: only rows after the latest actual; it starts from that actual (shared point)
+            const smmtRows = sorted.filter(r => r.smmt != null && r.period > latestActualPeriod);
+            const smmtEnd = smmtRows.length ? smmtRows[smmtRows.length - 1].period : null;
+            const smmt = smmtEnd ? {
+                name: 'SMMT provisional nowcast', show: showSmmt, end: smmtEnd,
+                line: { color: '#2E7D32', width: 3, dash: 'dot' },
+                points: [{ period: latestActualPeriod, value: observed[observed.length - 1].value }]
+                    .concat(smmtRows.map(r => ({ period: r.period, value: r.smmt })))
+            } : null;
+            const windowEnd = smmt && smmt.show ? smmtEnd : latestActualPeriod;
+
+            const windowRows = sorted.filter(r => r.period >= EV_BASELINE_PERIOD && r.period <= windowEnd);
             const forecast = (field, name, show, line) => ({
                 name, show, line,
                 points: windowRows.filter(r => r[field] != null).map(r => ({ period: r.period, value: r[field] }))
@@ -2077,6 +2192,8 @@
                 observed,
                 baselineSource: baseline.source,
                 latestActualPeriod,
+                smmt,
+                windowEnd,
                 forecasts: [
                     forecast('dfes_monthly_benchmark', 'DFES', showDfes, { color: '#FF9800', width: 2, dash: 'dash' }),
                     forecast('neso_ht', 'UKPN — Holistic Transition before tRESP', showNesoHt, { color: '#1565C0', width: 2 }),
@@ -2144,6 +2261,11 @@
                 series.forecasts.filter(f => f.show).forEach(f => {
                     traces.push(evTrace(evCumulativePoints(f.points), f.name, { type: 'scatter', mode: 'lines', line: f.line }));
                 });
+                if (series.smmt && series.smmt.show) {
+                    const opening = series.observed[0].value;   // same 31 March 2025 opening as the estimated series
+                    traces.push(evTrace(series.smmt.points.map(p => ({ period: p.period, value: p.value - opening })),
+                        series.smmt.name, { type: 'scatter', mode: 'lines+markers', line: series.smmt.line, marker: { size: 6 } }));
+                }
             }
             Plotly.newPlot('evCumulativeChart', traces, evDateLayout('Cumulative Net Stock Additions (Vehicles)', series, emptyMessage), { responsive: true });
             document.getElementById('evCumulativeChartTitle').textContent = getDisplayTitle('EV Cumulative Net Stock Additions Since March 2025');
@@ -2153,19 +2275,23 @@
             } else if (series) {
                 caveat = `The estimated series uses calculated EV stock estimates for every quarter, including 31 March 2025, so it shows actual-to-actual estimated growth. DFES, Holistic Transition and Holistic Transition Basic are each measured from their own 31 March 2025 stock and show forecast growth for comparison. No monthly EV actuals are inferred. Shown to the latest actual observation (${series.latestActualPeriod}).`;
             }
-            document.getElementById('evCumulativeCaveat').textContent = caveat;
+            document.getElementById('evCumulativeCaveat').textContent = caveat + evSmmtCaveat(series);
         }
 
         function updateEvQuarterlyChangeChart(series, emptyMessage) {
             const traces = [];
             if (series) {
-                const boundaries = series.observed.map(p => p.period);
+                const boundaries = series.observed.map(p => p.period).concat(evSmmtQuarterEnds(series));
                 if (showActual) {
                     traces.push(evTrace(evQuarterlyChangePoints(series.observed, boundaries), 'Estimated quarterly net stock change', { type: 'bar', marker: { color: '#9C27B0' } }));
                 }
                 series.forecasts.filter(f => f.show).forEach(f => {
                     traces.push(evTrace(evQuarterlyChangePoints(f.points, boundaries), f.name, { type: 'bar', marker: { color: f.line.color } }));
                 });
+                if (series.smmt && series.smmt.show && boundaries.length > series.observed.length) {
+                    traces.push(evTrace(evQuarterlyChangePoints(series.smmt.points, boundaries), series.smmt.name,
+                        { type: 'bar', marker: { color: series.smmt.line.color } }));
+                }
             }
             const layout = evDateLayout('Net Stock Change (Vehicles)', series, emptyMessage);
             layout.barmode = 'group';
@@ -2177,7 +2303,7 @@
             } else if (series) {
                 caveat = 'Change between consecutive quarter-end calculated EV stock estimates, starting from the calculated 31 March 2025 stock. Forecast changes use each forecast\'s own stock over the same quarter boundaries. No monthly EV actuals are inferred.';
             }
-            document.getElementById('monthlyCaveat').textContent = caveat;
+            document.getElementById('monthlyCaveat').textContent = caveat + evSmmtCaveat(series, true);
         }
 
         function updateEvStockChart(series, emptyMessage) {
@@ -2189,6 +2315,10 @@
                 series.forecasts.filter(f => f.show).forEach(f => {
                     traces.push(evTrace(f.points, f.name, { type: 'scatter', mode: 'lines', line: f.line }));
                 });
+                if (series.smmt && series.smmt.show) {
+                    traces.push(evTrace(series.smmt.points, series.smmt.name,
+                        { type: 'scatter', mode: 'lines+markers', line: series.smmt.line, marker: { size: 6 } }));
+                }
             }
             Plotly.newPlot('stockChart', traces, evDateLayout('Vehicle Stock', series, emptyMessage), { responsive: true });
             document.getElementById('stockChartTitle').textContent = getDisplayTitle('Installed Stock Trajectory');
@@ -2198,7 +2328,32 @@
             } else if (series) {
                 caveat = `All points, including March 2025, are calculated quarter-end EV stock estimates. DFES and UKPN lines are independent monthly interpolated stock trajectories and are not rebased to actuals. Shown to the latest actual observation (${series.latestActualPeriod}).`;
             }
-            document.getElementById('stockCaveat').textContent = caveat;
+            document.getElementById('stockCaveat').textContent = caveat + evSmmtCaveat(series);
+        }
+
+        // Quarter ends inside the displayed SMMT nowcast (complete quarters only)
+        function evSmmtQuarterEnds(series) {
+            if (!series || !series.smmt || !series.smmt.show) return [];
+            return series.smmt.points.slice(1).map(p => p.period)
+                .filter(p => parseInt(p.slice(5, 7), 10) % 3 === 0);
+        }
+
+        function evSmmtCaveat(series, quarterly) {
+            if (!series || !series.smmt) {
+                const st = smmtLevelState[{ Network: 'dno', LA: 'la', LAEP: 'laep' }[currentGeographyLevel] || 'dno'];
+                if (st && st.state === 'stale') return ` The published SMMT provisional nowcast (baseline ${st.manifest.baseline_period}) is not shown because the latest actual is ${st.latest}; it must be regenerated.`;
+                if (st && st.state === 'invalid') return ` The SMMT provisional nowcast is not shown: ${st.reason}.`;
+                return '';
+            }
+            if (!series.smmt.show) return ' The SMMT provisional nowcast is hidden.';
+            const months = `${series.latestActualPeriod} to ${series.smmt.end}`;
+            let text = ` SMMT provisional nowcast (green, dotted): monthly UK new registrations allocated to this area, starting from the latest actual (${series.latestActualPeriod}) so that point is not counted twice; ${months}. It is a provisional estimate, not an observation; DFES and UKPN lines are shown to the same month for comparison.`;
+            if (quarterly) {
+                text += evSmmtQuarterEnds(series).length
+                    ? ' Its bars cover complete quarters inside the nowcast only.'
+                    : ' The nowcast does not yet cover a complete quarter, so it has no quarterly bar.';
+            }
+            return text;
         }
 
         // LSOA Search functionality
@@ -2395,12 +2550,13 @@
             updateDashboard();
         });
 
-        ['showActual', 'showDfes', 'showNesoHt', 'showNesoHtb'].forEach(id => {
+        ['showActual', 'showDfes', 'showNesoHt', 'showNesoHtb', 'showSmmt'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
                 showActual = document.getElementById('showActual').checked;
                 showDfes = document.getElementById('showDfes').checked;
                 showNesoHt = document.getElementById('showNesoHt').checked;
                 showNesoHtb = document.getElementById('showNesoHtb').checked;
+                showSmmt = document.getElementById('showSmmt').checked;
                 updateDashboard();
             });
         });
