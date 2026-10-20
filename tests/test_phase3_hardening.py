@@ -48,8 +48,12 @@ class TestNowcastFormula(unittest.TestCase):
         baseline_bev_cars_gb = self.engine.weights["BEV Cars"]["gb_total"]
         baseline_bev_cars_ukpn = self.engine.weights["BEV Cars"]["ukpn_total"]
 
-        self.assertEqual(baseline_bev_cars_gb, 1685510, "Baseline GB should be 1,685,510")
-        self.assertEqual(baseline_bev_cars_ukpn, 549401, "Baseline UKPN should be 549,401")
+        # Baselines are the March 2026 BEV Cars totals of the (geography-corrected) body-type file
+        march = self.engine.lsoa_ev[(self.engine.lsoa_ev["period"] == "2026-03-31") &
+                                    (self.engine.lsoa_ev["Fuel"] == "BEV") & (self.engine.lsoa_ev["BodyType"] == "Cars")]
+        self.assertEqual(baseline_bev_cars_gb, int(march["ev_count"].sum()))
+        ukpn_lsoas = set(self.engine.lsoa_dno[self.engine.lsoa_dno["DNO"].notna()]["LSOA21CD"])
+        self.assertEqual(baseline_bev_cars_ukpn, int(march[march["LSOA21CD"].isin(ukpn_lsoas)]["ev_count"].sum()))
 
         # April SMMT input (national flow)
         april_smmt = 100000
@@ -69,9 +73,9 @@ class TestNowcastFormula(unittest.TestCase):
         self.assertGreater(april_stock, wrong_formula,
                           "Correct formula gives higher stock than incorrect formula")
 
-        # Approximately 581,997
-        self.assertAlmostEqual(april_stock, 581997, delta=1,
-                              msg="April stock ≈ 549,401 + 32,596 = 581,997")
+        # Baseline plus the GB flow times the UKPN share
+        self.assertAlmostEqual(april_stock, baseline_bev_cars_ukpn + april_smmt * baseline_bev_cars_ukpn / baseline_bev_cars_gb,
+                               delta=1e-6)
 
 
 class TestMultiMonthCumulation(unittest.TestCase):
@@ -93,12 +97,8 @@ class TestMultiMonthCumulation(unittest.TestCase):
             "2026-06-30": {"BEV Cars": 120000, "BEV Vans": 6000, "PHEV Cars": 60000, "PHEV Vans": 2400},
         }
 
-        baseline_ukpn = {
-            "BEV Cars": 549401,
-            "BEV Vans": 23967,
-            "PHEV Cars": 308839,
-            "PHEV Vans": 4037,
-        }
+        baseline_ukpn = {cat: self.engine.weights[cat]["ukpn_total"]
+                         for cat in ["BEV Cars", "BEV Vans", "PHEV Cars", "PHEV Vans"]}
 
         cumulative_by_month = {}
         running_total = baseline_ukpn.copy()
@@ -125,9 +125,10 @@ class TestMultiMonthCumulation(unittest.TestCase):
         self.assertGreater(june_stock, may_stock, "June stock > May")
 
         # Verify correct cumulation at category level
-        april_add = smmt_by_month["2026-04-30"]["BEV Cars"] * 0.326
-        may_add = smmt_by_month["2026-05-31"]["BEV Cars"] * 0.326
-        june_add = smmt_by_month["2026-06-30"]["BEV Cars"] * 0.326
+        share = self.engine.weights["BEV Cars"]["gb_weight"]
+        april_add = smmt_by_month["2026-04-30"]["BEV Cars"] * share
+        may_add = smmt_by_month["2026-05-31"]["BEV Cars"] * share
+        june_add = smmt_by_month["2026-06-30"]["BEV Cars"] * share
 
         expected_june = baseline_ukpn["BEV Cars"] + april_add + may_add + june_add
 

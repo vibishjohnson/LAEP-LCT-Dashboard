@@ -23,6 +23,7 @@ Outputs (project/output_processed/):
 - ev_qa_summary.txt (optional summary also printed to console)
 """
 
+import json
 import os
 import re
 import math
@@ -45,7 +46,8 @@ START_QUARTER = "2025-03-31"  # Q1 2025 onwards (fiscal year start)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EV_DIR = os.path.join(PROJECT_ROOT, "ev")
 LOOKUPS_DIR = os.path.join(PROJECT_ROOT, "lookups")
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "project", "output_processed")
+# LCT_EV_OUTPUT_DIR writes every output to an isolated candidate folder instead of project/output_processed
+OUTPUT_DIR = os.environ.get("LCT_EV_OUTPUT_DIR") or os.path.join(PROJECT_ROOT, "project", "output_processed")
 
 
 # ---------------------------------------------------------------------------
@@ -147,10 +149,14 @@ def redistribute_lsoa_totals(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def map_fuel_to_ev(fuel_series: pd.Series) -> pd.Series:
-    """Map raw Fuel strings to 'BEV' or 'PHEV' (filtering to just those)."""
-    f = fuel_series.astype(str).str.upper()
+    """Map raw Fuel strings to 'BEV' or 'PHEV' (filtering to just those).
+
+    Same definition as the approved C1 EV actuals: BEV = "Battery electric"; PHEV = "Plug-in hybrid electric
+    (petrol|diesel)". "Hybrid electric (petrol|diesel)", range-extended and fuel-cell vehicles are excluded.
+    """
+    f = fuel_series.astype(str).str.upper().str.strip()
     is_bev = f == "BATTERY ELECTRIC"
-    is_phev = (~is_bev) & (f.str.contains("PLUG", na=False) | f.str.contains("HYBRID", na=False))
+    is_phev = (~is_bev) & f.str.startswith("PLUG-IN HYBRID", na=False)
     mapped = pd.Series(index=f.index, dtype="object")
     mapped[is_bev] = "BEV"
     mapped[is_phev] = "PHEV"
@@ -324,13 +330,11 @@ def process_veh0135(bridge: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     # Keepership
     df, used_keepership = select_keepership_total_if_present(df, "Keepership")
 
-    # Support either LSOA11CD or LSOA21CD in updated extracts
-    if "LSOA11CD" in df.columns:
-        lsoa_col = "LSOA11CD"
-    elif "LSOA21CD" in df.columns:
-        lsoa_col = "LSOA21CD"
-    else:
-        raise ValueError("df_VEH0135.csv must contain either LSOA11CD or LSOA21CD")
+    # VEH0135 is published on LSOA 2021 geography. It is kept on LSOA21CD throughout: converting to LSOA11 and
+    # back duplicated stock for merged areas and collapsed split areas onto one child (fixed 2026-10-19).
+    if "LSOA21CD" not in df.columns:
+        raise ValueError("df_VEH0135.csv must contain LSOA21CD (LSOA 2011 extracts are no longer supported)")
+    lsoa_col = "LSOA21CD"
 
     # Filter to BEV/PHEV (overwrite Fuel with mapped EV fuel to avoid duplicate columns)
     df["Fuel"] = map_fuel_to_ev(df["Fuel"])
@@ -351,15 +355,8 @@ def process_veh0135(bridge: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         rows.append(tmp)
     df_long = pd.concat(rows, ignore_index=True)
 
-    # Convert to canonical LSOA11CD used downstream
-    if lsoa_col == "LSOA11CD":
-        df_long["LSOA11CD"] = df_long["LSOA_KEY"].astype(str).str.strip()
-    else:
-        # lsoa_col is LSOA21CD; derive LSOA11CD via bridge
-        bridge_lsoa = bridge[["LSOA11CD", "LSOA21CD"]].drop_duplicates().copy()
-        bridge_lsoa["LSOA21CD"] = bridge_lsoa["LSOA21CD"].astype(str).str.strip()
-        df_long["LSOA21CD"] = df_long["LSOA_KEY"].astype(str).str.strip()
-        df_long = df_long.merge(bridge_lsoa, on="LSOA21CD", how="left")
+    # One row per source LSOA21 (no geography join here, so no row can be duplicated or collapsed)
+    df_long["LSOA21CD"] = df_long["LSOA_KEY"].astype(str).str.strip()
 
     # Clean numeric
     df_long["value"] = clean_numeric_series(df_long["value_raw"]).fillna(0)
@@ -383,13 +380,13 @@ def process_veh0135(bridge: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         (df_long.assign(above_100=lambda d: d["value"] > 100).groupby("Fuel")["above_100"].mean()).to_dict()
     )
 
-    df_redist = redistribute_lsoa_totals(df_long[["LSOA11CD", "Fuel", "period", "value"]].copy())
+    df_redist = redistribute_lsoa_totals(df_long[["LSOA21CD", "Fuel", "period", "value"]].copy())
     agg_after = df_redist.groupby("Fuel")["redistributed"].sum().to_dict()
 
-    # Pivot to wide: BEV_total, PHEV_total
+    # Pivot to wide: BEV_total, PHEV_total (one row per LSOA21CD + period)
     df_pivot = (
         df_redist.pivot_table(
-            index=["LSOA11CD", "period"], columns="Fuel", values="redistributed", aggfunc="sum", fill_value=0
+            index=["LSOA21CD", "period"], columns="Fuel", values="redistributed", aggfunc="sum", fill_value=0
         )
         .reset_index()
     )
@@ -513,21 +510,28 @@ def allocate_lsoa_bodytypes(
     lsoa_totals: pd.DataFrame, bridge: pd.DataFrame, props: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    lsoa_totals: columns LSOA11CD, period, BEV_total, PHEV_total
+    lsoa_totals: columns LSOA21CD, period, BEV_total, PHEV_total (one row per LSOA21CD + period)
     props: LAD22CD, period, Fuel, BodyType, prop
     Returns:
-      - lsoa_body: LSOA21CD, LAD22CD, period, Fuel, BodyType, ev_count
+      - lsoa_body: LSOA11CD, LSOA21CD, LAD22CD, period, Fuel, BodyType, ev_count
       - missing_geo_df: rows with missing geo/LAEP later
-    """
-    # Map LSOA11 -> LSOA21 + LAD22
-    lsoa_totals = lsoa_totals.copy()
-    lsoa_totals["LSOA11CD"] = lsoa_totals["LSOA11CD"].astype(str).str.strip()
-    bridge = bridge.copy()
-    bridge["LSOA11CD"] = bridge["LSOA11CD"].astype(str).str.strip()
-    # Prevent fanout: enforce one row per LSOA11CD for allocation joins
-    bridge_one = bridge.drop_duplicates(subset=["LSOA11CD"], keep="first").copy()
 
-    lsoa_geo = lsoa_totals.merge(bridge_one, on="LSOA11CD", how="left")
+    LAD22CD comes from each LSOA21CD's single LAD22 in the bridge. LSOA11CD is a reference column only: the
+    LSOA21's 2011 parent (the smallest code when several 2011 areas merged into it). It is never used as a key.
+    """
+    lsoa_totals = lsoa_totals.copy()
+    lsoa_totals["LSOA21CD"] = lsoa_totals["LSOA21CD"].astype(str).str.strip()
+    geo21 = (
+        bridge.assign(LSOA21CD=bridge["LSOA21CD"].astype(str).str.strip())
+        .sort_values(["LSOA21CD", "LSOA11CD"])
+        .groupby("LSOA21CD", as_index=False)
+        .agg(LSOA11CD=("LSOA11CD", "first"), LAD22CD=("LAD22CD", "first"), n_lad=("LAD22CD", "nunique"))
+    )
+    if (geo21["n_lad"] > 1).any():
+        raise ValueError("Bridge maps an LSOA21CD to more than one LAD22CD")
+    geo21 = geo21.drop(columns="n_lad")
+
+    lsoa_geo = lsoa_totals.merge(geo21, on="LSOA21CD", how="left", validate="many_to_one")
 
     # Melt BEV_total/PHEV_total to long Fuel
     fuel_long = lsoa_geo.melt(
@@ -575,7 +579,7 @@ def allocate_lsoa_bodytypes(
     else:
         allocated = (
             alloc_valid.groupby(
-                ["LSOA11CD", "LSOA21CD", "LAD22CD", "period", "Fuel"], group_keys=False
+                ["LSOA21CD", "LAD22CD", "period", "Fuel"], group_keys=False
             ).apply(_alloc_group)
         )
         # Make sure ev_count column exists even if all totals were zero
@@ -603,6 +607,39 @@ def allocate_lsoa_bodytypes(
     missing_geo_df = pd.concat(miss_geo_rows, ignore_index=True) if miss_geo_rows else pd.DataFrame()
 
     return lsoa_body, missing_geo_df
+
+
+def geography_qa(lsoa_totals: pd.DataFrame, bridge: pd.DataFrame, lsoa_out: pd.DataFrame,
+                 missing_geo_df: pd.DataFrame) -> dict:
+    """Unique keys, stock conservation and no lost LSOA21 geography. Raises if any check fails."""
+    ew = set(bridge["LSOA21CD"].astype(str).str.strip())
+    totals = lsoa_totals[lsoa_totals["LSOA21CD"].isin(ew)].melt(
+        id_vars=["LSOA21CD", "period"], value_vars=["BEV_total", "PHEV_total"], var_name="Fuel", value_name="total")
+    totals["Fuel"] = totals["Fuel"].str.replace("_total", "", regex=False)
+    # E&W LSOAs whose LAD has no body-type proportions are reported as UNALLOCATED; non-E&W rows are out of scope
+    unalloc = (missing_geo_df[(missing_geo_df["BodyType"] == "UNALLOCATED") & missing_geo_df["LSOA21CD"].isin(ew)]
+               if not missing_geo_df.empty else pd.DataFrame(columns=["period", "Fuel", "LSOA21CD", "ev_count"]))
+    key = ["period", "LSOA21CD", "Fuel", "BodyType"]
+    source = totals.groupby(["period", "Fuel"])["total"].sum()
+    placed = lsoa_out.groupby(["period", "Fuel"])["ev_count"].sum().add(
+        unalloc.groupby(["period", "Fuel"])["ev_count"].sum(), fill_value=0)
+    nonzero = set(totals.loc[totals["total"] > 0, "LSOA21CD"])
+    present = set(lsoa_out["LSOA21CD"]) | set(unalloc["LSOA21CD"])
+    qa = {
+        "duplicate_keys": int(lsoa_out.duplicated(key).sum()),
+        "conservation_by_period_fuel": {f"{p}|{f}": [int(source[(p, f)]), int(placed.get((p, f), 0))] for p, f in source.index},
+        "conserved": bool((source.round() == placed.reindex(source.index).fillna(0).round()).all()),
+        "lsoa21_with_stock": len(nonzero),
+        "lsoa21_lost": sorted(nonzero - present),
+        "unallocated_rows": int(len(unalloc)),
+        "unallocated_vehicles": int(unalloc["ev_count"].sum()) if len(unalloc) else 0,
+    }
+    if qa["duplicate_keys"] or not qa["conserved"] or qa["lsoa21_lost"]:
+        with open(os.path.join(OUTPUT_DIR, "ev_geography_qa_FAILED.json"), "w", encoding="utf-8") as f:
+            json.dump(qa, f, indent=1)
+        raise ValueError(f"Geography QA failed: duplicates={qa['duplicate_keys']}, conserved={qa['conserved']}, "
+                         f"lost={qa['lsoa21_lost'][:10]}")
+    return qa
 
 
 # ---------------------------------------------------------------------------
@@ -646,8 +683,13 @@ def main():
         ["period", "LSOA11CD", "LSOA21CD", "LAD22CD", "Fuel", "BodyType", "ev_count"]
     ].copy()
 
-    # Write LSOA output
+    # Write LSOA output (only after the geography QA passes)
     lsoa_out = lsoa_body.dropna(subset=["LSOA21CD", "LAD22CD"]).copy()
+    geo_qa = geography_qa(lsoa_totals, bridge, lsoa_out, missing_geo_df)
+    with open(os.path.join(OUTPUT_DIR, "ev_geography_qa.json"), "w", encoding="utf-8") as f:
+        json.dump(geo_qa, f, indent=1)
+    print(f"Geography QA passed: {geo_qa['lsoa21_with_stock']} LSOA21 with stock, 0 duplicate keys, totals conserved, "
+          f"{geo_qa['unallocated_rows']} unallocated rows ({geo_qa['unallocated_vehicles']} vehicles, no LAD body-type proportions)")
     lsoa_out_path = os.path.join(OUTPUT_DIR, "lsoa_ev_bodytype.csv")
     lsoa_out.to_csv(lsoa_out_path, index=False)
     print(f"\nWritten LSOA EV bodytype file: {lsoa_out_path} ({len(lsoa_out)} rows)")
